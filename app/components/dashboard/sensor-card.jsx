@@ -2,6 +2,12 @@
  * SensorCard Component
  * Displays individual sensor readings with status indicators
  * Used on the dashboard and sensors pages
+ * 
+ * Mobile-first design:
+ * - Touch-friendly with 44px+ tap targets
+ * - Larger icons (h-6/h-7) for better visibility
+ * - Generous padding for thumb navigation
+ * - Clear visual hierarchy with prominent values
  */
 
 import { cn } from '~/lib/utils';
@@ -45,7 +51,7 @@ const SENSOR_GRADIENTS = {
 };
 
 /**
- * Icon background colors
+ * Icon background colors - larger container for touch targets
  */
 const ICON_COLORS = {
   ph: 'bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-400',
@@ -89,55 +95,64 @@ export function SensorCard({
   return (
     <Card
       className={cn(
-        'relative overflow-hidden transition-all duration-200 hover:shadow-md',
+        'relative overflow-hidden transition-all duration-200',
+        // Touch-friendly: entire card is tappable
+        'active:scale-[0.98] touch-manipulation',
+        'hover:shadow-md',
         `bg-gradient-to-br ${SENSOR_GRADIENTS[type]}`,
         className
       )}
     >
-      <CardContent className="p-4 sm:p-6">
+      {/* Increased padding for touch: p-5 on mobile, p-6 on larger screens */}
+      <CardContent className="p-5 sm:p-6">
         {/* Header with icon and status */}
         <div className="flex items-start justify-between">
-          <div className={cn('rounded-lg p-2', ICON_COLORS[type])}>
-            <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
+          {/* Larger icon container (44px+) for better touch and visibility */}
+          <div className={cn(
+            'rounded-xl p-2.5 sm:p-3',
+            ICON_COLORS[type]
+          )}>
+            <Icon className="h-6 w-6 sm:h-7 sm:w-7" />
           </div>
-          <Badge variant={status} className="text-xs">
+          {/* Larger badge for readability */}
+          <Badge variant={status} className="text-xs sm:text-sm px-2.5 py-1">
             {statusConfig.label}
           </Badge>
         </div>
 
-        {/* Sensor name */}
-        <div className="mt-3 sm:mt-4">
-          <p className="text-xs sm:text-sm text-muted-foreground">
+        {/* Sensor name - larger text for readability */}
+        <div className="mt-4">
+          <p className="text-sm sm:text-base text-muted-foreground font-medium">
             {threshold.name}
           </p>
         </div>
 
-        {/* Value display */}
-        <div className="mt-1 flex items-baseline gap-1">
-          <span className="text-2xl sm:text-3xl font-bold tracking-tight">
+        {/* Value display - prominent and easy to read */}
+        <div className="mt-2 flex items-baseline gap-1.5">
+          <span className="text-3xl sm:text-4xl font-bold tracking-tight">
             {typeof value === 'number' ? value.toFixed(1) : value}
           </span>
-          <span className="text-xs sm:text-sm text-muted-foreground">
+          <span className="text-sm sm:text-base text-muted-foreground">
             {threshold.unit}
           </span>
         </div>
 
-        {/* Trend and safe range */}
-        <div className="mt-3 sm:mt-4 flex items-center justify-between text-xs text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <TrendIcon className={cn('h-3 w-3', trendColor)} />
+        {/* Trend and safe range - larger text */}
+        <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+          <div className="flex items-center gap-1.5">
+            <TrendIcon className={cn('h-4 w-4', trendColor)} />
             <span>
               {trend > 0 ? 'Rising' : trend < 0 ? 'Falling' : 'Stable'}
             </span>
           </div>
-          <span>Safe: {threshold.safeRange}</span>
+          <span className="text-xs sm:text-sm">Safe: {threshold.safeRange}</span>
         </div>
       </CardContent>
 
-      {/* Status indicator bar at bottom */}
+      {/* Status indicator bar at bottom - thicker for visibility */}
       <div
         className={cn(
-          'absolute bottom-0 left-0 right-0 h-1',
+          'absolute bottom-0 left-0 right-0 h-1.5',
           statusConfig.dotColor
         )}
       />

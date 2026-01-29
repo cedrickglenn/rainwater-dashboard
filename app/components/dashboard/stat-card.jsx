@@ -1,6 +1,11 @@
 /**
  * StatCard Component
  * Simple statistics display card
+ * 
+ * Mobile-first design:
+ * - Larger icons for touch-friendly interface
+ * - Generous padding for easier interaction
+ * - Prominent values that are easy to read at a glance
  */
 
 import { cn } from '~/lib/utils';
@@ -32,35 +37,39 @@ export function StatCard({
   const TrendIcon = isPositive ? TrendingUp : isNegative ? TrendingDown : Minus;
 
   return (
-    <Card className={cn('', className)}>
-      <CardContent className="p-4 sm:p-6">
+    <Card className={cn('touch-manipulation', className)}>
+      {/* Generous padding for touch: p-5 mobile, p-6 larger screens */}
+      <CardContent className="p-5 sm:p-6">
         <div className="flex items-start justify-between">
+          {/* Larger icon container (44px+) */}
           {Icon && (
-            <div className={cn('rounded-lg p-2', iconColor)}>
-              <Icon className="h-5 w-5" />
+            <div className={cn('rounded-xl p-2.5 sm:p-3', iconColor)}>
+              <Icon className="h-6 w-6 sm:h-7 sm:w-7" />
             </div>
           )}
+          {/* Larger trend indicator for readability */}
           {change !== undefined && (
             <div
               className={cn(
-                'flex items-center gap-1 text-xs font-medium',
+                'flex items-center gap-1.5 text-sm font-medium',
                 isPositive && 'text-green-600 dark:text-green-400',
                 isNegative && 'text-red-600 dark:text-red-400',
                 !isPositive && !isNegative && 'text-muted-foreground'
               )}
             >
-              <TrendIcon className="h-3 w-3" />
+              <TrendIcon className="h-4 w-4" />
               <span>{Math.abs(change)}%</span>
             </div>
           )}
         </div>
 
-        <div className="mt-3">
-          <p className="text-sm text-muted-foreground">{title}</p>
-          <div className="mt-1 flex items-baseline gap-1">
-            <span className="text-2xl font-bold">{value}</span>
+        {/* Stat content with larger text */}
+        <div className="mt-4">
+          <p className="text-sm sm:text-base text-muted-foreground font-medium">{title}</p>
+          <div className="mt-1.5 flex items-baseline gap-1.5">
+            <span className="text-2xl sm:text-3xl font-bold">{value}</span>
             {unit && (
-              <span className="text-sm text-muted-foreground">{unit}</span>
+              <span className="text-sm sm:text-base text-muted-foreground">{unit}</span>
             )}
           </div>
         </div>

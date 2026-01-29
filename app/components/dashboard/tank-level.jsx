@@ -1,6 +1,11 @@
 /**
  * TankLevel Component
  * Visual water tank level indicator
+ * 
+ * Mobile-first design:
+ * - Larger tank visualization for visibility
+ * - Bigger text for easy reading
+ * - Touch-friendly layout
  */
 
 import { cn } from '~/lib/utils';
@@ -65,21 +70,21 @@ export function TankLevel({
 
   return (
     <Card className={cn('', className)}>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center justify-between text-lg">
+      <CardHeader className="pb-2 px-4 sm:px-6 pt-4 sm:pt-6">
+        <CardTitle className="flex items-center justify-between text-base sm:text-lg">
           <span className="flex items-center gap-2">
-            <Droplets className="h-5 w-5 text-primary" />
+            <Droplets className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
             Tank Level
           </span>
-          <span className={cn('text-sm font-medium', status.color)}>
+          <span className={cn('text-sm sm:text-base font-medium', status.color)}>
             {status.label}
           </span>
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
         <div className="flex gap-4 sm:gap-6">
-          {/* Tank visualization */}
-          <div className="relative flex h-32 w-20 sm:h-40 sm:w-24 flex-shrink-0 items-end justify-center rounded-b-2xl rounded-t-lg border-2 border-border bg-muted/30 overflow-hidden">
+          {/* Tank visualization - larger on mobile for visibility */}
+          <div className="relative flex h-36 w-24 sm:h-44 sm:w-28 flex-shrink-0 items-end justify-center rounded-b-2xl rounded-t-lg border-2 border-border bg-muted/30 overflow-hidden">
             {/* Water fill with animation */}
             <div
               className={cn(
@@ -104,11 +109,11 @@ export function TankLevel({
               </div>
             </div>
 
-            {/* Level markers */}
-            <div className="absolute inset-y-2 right-1 flex flex-col justify-between">
-              <span className="text-[8px] text-muted-foreground">100%</span>
-              <span className="text-[8px] text-muted-foreground">50%</span>
-              <span className="text-[8px] text-muted-foreground">0%</span>
+            {/* Level markers - larger text */}
+            <div className="absolute inset-y-3 right-1.5 flex flex-col justify-between">
+              <span className="text-[10px] sm:text-xs text-muted-foreground">100%</span>
+              <span className="text-[10px] sm:text-xs text-muted-foreground">50%</span>
+              <span className="text-[10px] sm:text-xs text-muted-foreground">0%</span>
             </div>
 
             {/* Current level indicator */}
@@ -118,35 +123,35 @@ export function TankLevel({
             />
           </div>
 
-          {/* Stats */}
-          <div className="flex flex-col justify-center space-y-3 sm:space-y-4">
-            {/* Percentage */}
+          {/* Stats - larger text for mobile readability */}
+          <div className="flex flex-col justify-center space-y-4">
+            {/* Percentage - prominent display */}
             <div>
               <div className="flex items-baseline gap-1">
-                <span className="text-3xl sm:text-4xl font-bold">{level}</span>
-                <span className="text-lg text-muted-foreground">%</span>
+                <span className="text-4xl sm:text-5xl font-bold">{level}</span>
+                <span className="text-xl text-muted-foreground">%</span>
               </div>
-              <p className="text-xs text-muted-foreground">Current Level</p>
+              <p className="text-sm text-muted-foreground">Current Level</p>
             </div>
 
             {/* Volume */}
             <div>
               <div className="flex items-baseline gap-1">
-                <span className="text-lg sm:text-xl font-semibold">
+                <span className="text-xl sm:text-2xl font-semibold">
                   {currentVolume}
                 </span>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-sm sm:text-base text-muted-foreground">
                   / {capacity} L
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground">Water Volume</p>
+              <p className="text-sm text-muted-foreground">Water Volume</p>
             </div>
 
-            {/* Trend */}
-            <div className="flex items-center gap-1 text-sm">
+            {/* Trend - larger for visibility */}
+            <div className="flex items-center gap-2 text-sm sm:text-base">
               <TrendIcon
                 className={cn(
-                  'h-4 w-4',
+                  'h-5 w-5',
                   trend >= 0 ? 'text-green-500' : 'text-red-500'
                 )}
               />
