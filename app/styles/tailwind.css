@@ -2,6 +2,12 @@
  * Global styles for the Rainwater Dashboard
  * Includes Tailwind CSS base, components, and utilities
  * Plus shadcn/ui CSS variables for theming
+ * 
+ * MOBILE-FIRST TYPOGRAPHY STRATEGY:
+ * - Base font: 16px on mobile, scales up on larger screens
+ * - Headers: 20-24px on mobile for clear hierarchy
+ * - Touch targets: minimum 44px
+ * - Line height: generous for readability
  */
 
 @tailwind base;
@@ -89,22 +95,92 @@
 
 /**
  * Base styles applied to all elements
+ * MOBILE-FIRST: Start with mobile sizes, scale up for desktop
  */
 @layer base {
   * {
     @apply border-border;
   }
 
-  body {
-    @apply bg-background text-foreground;
-    font-feature-settings:
-      "rlig" 1,
-      "calt" 1;
+  html {
+    /* 
+     * MOBILE TYPOGRAPHY BASE
+     * 16px base for mobile, comfortable reading size
+     * Slightly larger on tablet/desktop for visual balance
+     */
+    font-size: 16px;
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
   }
 
-  /* Smooth scrolling */
-  html {
-    scroll-behavior: smooth;
+  @media (min-width: 640px) {
+    html {
+      font-size: 16px; /* Keep 16px on tablet */
+    }
+  }
+
+  @media (min-width: 1024px) {
+    html {
+      font-size: 16px; /* Keep consistent on desktop */
+    }
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    /* Mobile-friendly line height for readability */
+    line-height: 1.6;
+    /* Prevent horizontal scroll on mobile */
+    overflow-x: hidden;
+  }
+
+  /* 
+   * Mobile-first heading scale
+   * Larger, more readable sizes on mobile
+   */
+  h1 {
+    font-size: 1.5rem;     /* 24px on mobile */
+    line-height: 1.3;
+    font-weight: 700;
+  }
+
+  h2 {
+    font-size: 1.25rem;    /* 20px on mobile */
+    line-height: 1.35;
+    font-weight: 600;
+  }
+
+  h3 {
+    font-size: 1.125rem;   /* 18px on mobile */
+    line-height: 1.4;
+    font-weight: 600;
+  }
+
+  h4 {
+    font-size: 1rem;       /* 16px on mobile */
+    line-height: 1.5;
+    font-weight: 500;
+  }
+
+  /* Scale up headings on larger screens */
+  @media (min-width: 640px) {
+    h1 { font-size: 1.875rem; }  /* 30px */
+    h2 { font-size: 1.5rem; }    /* 24px */
+    h3 { font-size: 1.25rem; }   /* 20px */
+    h4 { font-size: 1.125rem; }  /* 18px */
+  }
+
+  @media (min-width: 1024px) {
+    h1 { font-size: 2.25rem; }   /* 36px */
+    h2 { font-size: 1.75rem; }   /* 28px */
+    h3 { font-size: 1.375rem; }  /* 22px */
+    h4 { font-size: 1.25rem; }   /* 20px */
+  }
+
+  /* Paragraph base styling */
+  p {
+    font-size: 1rem;       /* 16px base */
+    line-height: 1.6;
   }
 
   /* Custom scrollbar for webkit browsers */
@@ -123,6 +199,20 @@
 
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-muted-foreground/50;
+  }
+
+  /* 
+   * Focus states for accessibility
+   * Visible focus rings for keyboard navigation
+   */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  /* Remove focus ring for mouse users */
+  :focus:not(:focus-visible) {
+    outline: none;
   }
 }
 
@@ -171,6 +261,56 @@
   .sensor-gradient-temperature {
     @apply bg-gradient-to-br from-red-500/10 to-red-600/5;
   }
+
+  /* 
+   * MOBILE TOUCH TARGET UTILITIES
+   * Ensure minimum 44px touch targets per WCAG guidelines
+   */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .touch-target-lg {
+    min-height: 48px;
+    min-width: 48px;
+  }
+
+  /* 
+   * Mobile-friendly button base
+   * Larger hit areas for touch devices
+   */
+  .btn-mobile {
+    @apply min-h-[44px] min-w-[44px] px-4 py-2.5;
+  }
+
+  .btn-mobile-lg {
+    @apply min-h-[48px] min-w-[48px] px-5 py-3;
+  }
+
+  /* 
+   * Mobile navigation item styling
+   * Large touch targets with visual feedback
+   */
+  .nav-item-mobile {
+    @apply min-h-[48px] flex items-center gap-3 px-4 py-3 rounded-xl;
+    @apply transition-all duration-200;
+    @apply active:scale-[0.98] active:bg-muted;
+  }
+
+  /* 
+   * Mobile card with proper spacing
+   * Prevents dense layouts on small screens
+   */
+  .card-mobile {
+    @apply p-4 sm:p-5 lg:p-6;
+  }
+
+  /* Header/topbar mobile styling */
+  .header-mobile {
+    @apply h-14 sm:h-16 lg:h-16;
+    @apply px-3 sm:px-4 lg:px-6;
+  }
 }
 
 /**
@@ -190,5 +330,74 @@
   /* Text balance for better typography */
   .text-balance {
     text-wrap: balance;
+  }
+
+  /* Safe area padding for notched devices (iPhone X+) */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* 
+   * Touch manipulation - improves touch responsiveness
+   * Disables double-tap zoom for faster interactions
+   */
+  .touch-action-manipulation {
+    touch-action: manipulation;
+  }
+
+  /* 
+   * Mobile text sizes - explicit utilities for mobile typography
+   */
+  .text-mobile-xs {
+    font-size: 0.75rem;   /* 12px */
+    line-height: 1.5;
+  }
+
+  .text-mobile-sm {
+    font-size: 0.875rem;  /* 14px */
+    line-height: 1.5;
+  }
+
+  .text-mobile-base {
+    font-size: 1rem;      /* 16px */
+    line-height: 1.6;
+  }
+
+  .text-mobile-lg {
+    font-size: 1.125rem;  /* 18px */
+    line-height: 1.5;
+  }
+
+  .text-mobile-xl {
+    font-size: 1.25rem;   /* 20px */
+    line-height: 1.4;
+  }
+
+  .text-mobile-2xl {
+    font-size: 1.5rem;    /* 24px */
+    line-height: 1.3;
+  }
+
+  /* 
+   * Icon sizing utilities for mobile
+   * Ensures icons are large enough for touch
+   */
+  .icon-touch {
+    width: 1.25rem;   /* 20px minimum */
+    height: 1.25rem;
+  }
+
+  .icon-touch-md {
+    width: 1.5rem;    /* 24px recommended */
+    height: 1.5rem;
+  }
+
+  .icon-touch-lg {
+    width: 1.75rem;   /* 28px for emphasis */
+    height: 1.75rem;
   }
 }

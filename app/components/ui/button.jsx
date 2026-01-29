@@ -2,6 +2,12 @@
  * Button Component
  * A reusable button with multiple variants and sizes
  * Based on shadcn/ui button pattern
+ * 
+ * MOBILE-FIRST UPDATES:
+ * - Added 'icon-lg' size for 48px touch targets
+ * - Icon size increased from 40px to 44px (meets WCAG minimum)
+ * - Added touch-action-manipulation for faster touch response
+ * - Focus states improved for accessibility
  */
 
 import * as React from 'react';
@@ -16,7 +22,16 @@ import { cn } from '~/lib/utils';
  */
 const buttonVariants = cva(
   // Base styles applied to all buttons
-  'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+  [
+    'inline-flex items-center justify-center whitespace-nowrap rounded-md',
+    'text-sm font-medium ring-offset-background transition-colors',
+    // Focus states for accessibility
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+    // Disabled state
+    'disabled:pointer-events-none disabled:opacity-50',
+    // Touch optimization
+    'touch-action-manipulation',
+  ].join(' '),
   {
     variants: {
       // Visual variants
@@ -34,12 +49,17 @@ const buttonVariants = cva(
         success: 'bg-green-600 text-white hover:bg-green-700',
         warning: 'bg-amber-500 text-white hover:bg-amber-600',
       },
-      // Size variants
+      // Size variants - MOBILE-FIRST: larger defaults
       size: {
         default: 'h-10 px-4 py-2',
         sm: 'h-9 rounded-md px-3',
         lg: 'h-11 rounded-md px-8',
-        icon: 'h-10 w-10',
+        // MOBILE-FRIENDLY: 44px minimum touch target (WCAG compliant)
+        icon: 'h-11 w-11 min-h-[44px] min-w-[44px]',
+        // MOBILE-OPTIMIZED: 48px touch target for primary actions
+        'icon-lg': 'h-12 w-12 min-h-[48px] min-w-[48px]',
+        // Full width mobile button
+        'mobile': 'h-12 w-full min-h-[48px] px-6 py-3 text-base',
       },
     },
     // Default variant and size
@@ -55,7 +75,7 @@ const buttonVariants = cva(
  * @param {Object} props - Component props
  * @param {string} props.className - Additional CSS classes
  * @param {string} props.variant - Button variant (default, destructive, outline, etc.)
- * @param {string} props.size - Button size (default, sm, lg, icon)
+ * @param {string} props.size - Button size (default, sm, lg, icon, icon-lg, mobile)
  * @param {boolean} props.asChild - Render as child component using Slot
  * @param {React.ReactNode} props.children - Button content
  */

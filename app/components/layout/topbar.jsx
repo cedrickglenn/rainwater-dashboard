@@ -2,11 +2,12 @@
  * Topbar Component
  * Top navigation bar with mobile menu toggle, search, and user actions
  * 
- * Mobile-first design principles:
- * - 44px+ minimum touch targets for all interactive elements
- * - Simplified layout on mobile (fewer visible controls)
- * - Icons sized for touch (h-5/h-6 instead of h-4)
- * - Adequate spacing between touch targets
+ * MOBILE-FIRST DESIGN (Updated):
+ * - Height: 60px on mobile (up from 56px) for better touch ergonomics
+ * - Touch targets: 48px minimum (above WCAG 44px guideline)
+ * - Icons: 24px on mobile for visibility (up from 20px)
+ * - Spacing: generous gaps to prevent mis-taps
+ * - Typography: larger app title on mobile (16px)
  */
 
 import { useState } from 'react';
@@ -54,44 +55,47 @@ export function Topbar({
 
   const isDark = theme === 'dark';
 
-  // Base classes for touch-friendly buttons (44px minimum touch target)
-  const touchButtonClasses = 'min-h-[44px] min-w-[44px] h-11 w-11';
+  // Base classes for touch-friendly buttons (48px touch target)
+  const touchButtonClasses = 'min-h-[48px] min-w-[48px] h-12 w-12 touch-action-manipulation';
 
   return (
     <header
       className={cn(
-        // Taller header on mobile for better touch accessibility
-        'sticky top-0 z-30 flex h-14 sm:h-16 items-center justify-between',
+        // MOBILE: 60px height for comfortable touch header
+        // TABLET+: 64px for visual balance with sidebar
+        'sticky top-0 z-30 flex h-[60px] sm:h-16 items-center justify-between',
         'border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60',
-        'px-2 sm:px-4 lg:px-6',
+        // MOBILE: 12px padding, TABLET: 16px, DESKTOP: 24px
+        'px-3 sm:px-4 lg:px-6',
         className
       )}
     >
       {/* Left section */}
-      <div className="flex items-center gap-1 sm:gap-3">
-        {/* Mobile menu toggle - larger touch target */}
+      <div className="flex items-center gap-2 sm:gap-3">
+        {/* Mobile menu toggle - 48px touch target with 24px icon */}
         <Button
           variant="ghost"
           size="icon"
           onClick={onMenuClick}
-          className={cn(touchButtonClasses, 'lg:hidden')}
-          aria-label="Toggle menu"
+          className={cn(touchButtonClasses, 'lg:hidden rounded-xl')}
+          aria-label="Open navigation menu"
         >
           <Menu className="h-6 w-6" />
         </Button>
 
-        {/* App title on mobile (since sidebar is hidden) */}
-        <span className="font-semibold text-sm sm:hidden truncate max-w-[140px]">
+        {/* App title on mobile - larger text (16px) for readability */}
+        <span className="font-semibold text-base sm:hidden truncate max-w-[160px]">
           RainWater
         </span>
 
         {/* Search (hidden on small screens) */}
-        <div className="hidden sm:flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2">
+        <div className="hidden sm:flex items-center gap-2 rounded-xl border bg-muted/50 px-3 py-2.5">
           <Search className="h-5 w-5 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search..."
             className="w-40 lg:w-64 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            aria-label="Search"
           />
           <kbd className="hidden lg:inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
             <span className="text-xs">⌘</span>K
@@ -99,63 +103,63 @@ export function Topbar({
         </div>
       </div>
 
-      {/* Right section - minimal on mobile */}
-      <div className="flex items-center gap-1 sm:gap-2">
+      {/* Right section - generous spacing between buttons */}
+      <div className="flex items-center gap-1.5 sm:gap-2">
         {/* Refresh button - hidden on mobile */}
         <Button
           variant="ghost"
           size="icon"
           onClick={handleRefresh}
           disabled={isRefreshing}
-          className={cn(touchButtonClasses, 'hidden sm:flex')}
+          className={cn(touchButtonClasses, 'hidden sm:flex rounded-xl')}
           aria-label="Refresh data"
         >
           <RefreshCw
-            className={cn('h-5 w-5', isRefreshing && 'animate-spin')}
+            className={cn('h-5 w-5 sm:h-6 sm:w-6', isRefreshing && 'animate-spin')}
           />
         </Button>
 
-        {/* Theme toggle - always visible, touch-friendly */}
+        {/* Theme toggle - 48px touch target, 24px icon */}
         <Button
           variant="ghost"
           size="icon"
           onClick={onThemeToggle}
-          className={touchButtonClasses}
-          aria-label="Toggle theme"
+          className={cn(touchButtonClasses, 'rounded-xl')}
+          aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
         >
           {isDark ? (
-            <Sun className="h-5 w-5 sm:h-5 sm:w-5" />
+            <Sun className="h-6 w-6" />
           ) : (
-            <Moon className="h-5 w-5 sm:h-5 sm:w-5" />
+            <Moon className="h-6 w-6" />
           )}
         </Button>
 
-        {/* Notifications - always visible, touch-friendly */}
+        {/* Notifications - 48px touch target, 24px icon */}
         <Button
           variant="ghost"
           size="icon"
-          className={cn(touchButtonClasses, 'relative')}
-          aria-label="Notifications"
+          className={cn(touchButtonClasses, 'relative rounded-xl')}
+          aria-label={`Notifications${alertCount > 0 ? `, ${alertCount} unread` : ''}`}
         >
-          <Bell className="h-5 w-5" />
+          <Bell className="h-6 w-6" />
           {alertCount > 0 && (
             <Badge
               variant="destructive"
-              className="absolute -right-0.5 -top-0.5 h-5 w-5 rounded-full p-0 text-[10px] flex items-center justify-center"
+              className="absolute -right-0.5 top-1 h-5 w-5 rounded-full p-0 text-[10px] flex items-center justify-center"
             >
               {alertCount > 9 ? '9+' : alertCount}
             </Badge>
           )}
         </Button>
 
-        {/* User menu - touch-friendly */}
+        {/* User menu - 48px touch target */}
         <Button
           variant="ghost"
           size="icon"
           className={cn(touchButtonClasses, 'rounded-full')}
           aria-label="User menu"
         >
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
             <User className="h-5 w-5" />
           </div>
         </Button>
