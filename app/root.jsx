@@ -28,8 +28,6 @@ import { alerts } from '~/data/mock-data';
  */
 export const meta = () => {
   return [
-    { charset: 'utf-8' },
-    { name: 'viewport', content: 'width=device-width, initial-scale=1' },
     { title: 'RainWater Dashboard | Smart Rainwater Monitoring System' },
     {
       name: 'description',
@@ -77,6 +75,8 @@ export default function App() {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
         {/* Script to prevent flash of wrong theme */}

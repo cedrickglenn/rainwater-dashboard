@@ -2,7 +2,7 @@
  * SensorCard Component
  * Displays individual sensor readings with status indicators
  * Used on the dashboard and sensors pages
- * 
+ *
  * Mobile-first design:
  * - Touch-friendly with 44px+ tap targets
  * - Larger icons (h-6/h-7) for better visibility
@@ -70,21 +70,14 @@ const ICON_COLORS = {
  * @param {string} props.lastUpdated - Last update timestamp
  * @param {string} props.className - Additional CSS classes
  */
-export function SensorCard({
-  type,
-  value,
-  trend = 0,
-  lastUpdated,
-  className,
-}) {
+export function SensorCard({ type, value, trend = 0, lastUpdated, className }) {
   const threshold = SENSOR_THRESHOLDS[type];
   const status = getSensorStatus(type, value);
   const statusConfig = STATUS_CONFIG[status];
   const Icon = SENSOR_ICONS[type];
 
   // Get trend icon
-  const TrendIcon =
-    trend > 0 ? TrendingUp : trend < 0 ? TrendingDown : Minus;
+  const TrendIcon = trend > 0 ? TrendingUp : trend < 0 ? TrendingDown : Minus;
   const trendColor =
     trend > 0
       ? 'text-green-500'
@@ -97,42 +90,39 @@ export function SensorCard({
       className={cn(
         'relative overflow-hidden transition-all duration-200',
         // Touch-friendly: entire card is tappable
-        'active:scale-[0.98] touch-manipulation',
+        'touch-manipulation active:scale-[0.98]',
         'hover:shadow-md',
         `bg-gradient-to-br ${SENSOR_GRADIENTS[type]}`,
         className
       )}
     >
       {/* Increased padding for touch: p-5 on mobile, p-6 on larger screens */}
-      <CardContent className="p-5 sm:p-6">
+      <CardContent className="p-4 sm:p-6">
         {/* Header with icon and status */}
         <div className="flex items-start justify-between">
           {/* Larger icon container (44px+) for better touch and visibility */}
-          <div className={cn(
-            'rounded-xl p-2.5 sm:p-3',
-            ICON_COLORS[type]
-          )}>
+          <div className={cn('rounded-xl p-2.5 sm:p-3', ICON_COLORS[type])}>
             <Icon className="h-6 w-6 sm:h-7 sm:w-7" />
           </div>
           {/* Larger badge for readability */}
-          <Badge variant={status} className="text-xs sm:text-sm px-2.5 py-1">
+          <Badge variant={status} className="px-2.5 py-1 text-xs sm:text-sm">
             {statusConfig.label}
           </Badge>
         </div>
 
         {/* Sensor name - larger text for readability */}
         <div className="mt-4">
-          <p className="text-sm sm:text-base text-muted-foreground font-medium">
+          <p className="text-sm font-medium text-muted-foreground sm:text-base">
             {threshold.name}
           </p>
         </div>
 
         {/* Value display - prominent and easy to read */}
         <div className="mt-2 flex items-baseline gap-1.5">
-          <span className="text-3xl sm:text-4xl font-bold tracking-tight">
+          <span className="text-3xl font-bold tracking-tight sm:text-4xl">
             {typeof value === 'number' ? value.toFixed(1) : value}
           </span>
-          <span className="text-sm sm:text-base text-muted-foreground">
+          <span className="text-sm text-muted-foreground sm:text-base">
             {threshold.unit}
           </span>
         </div>
@@ -145,7 +135,9 @@ export function SensorCard({
               {trend > 0 ? 'Rising' : trend < 0 ? 'Falling' : 'Stable'}
             </span>
           </div>
-          <span className="text-xs sm:text-sm">Safe: {threshold.safeRange}</span>
+          <span className="text-xs sm:text-sm">
+            Safe: {threshold.safeRange}
+          </span>
         </div>
       </CardContent>
 

@@ -2,7 +2,7 @@
  * WaterQualityStatus Component
  * Displays overall water potability status
  * Large visual indicator for the dashboard
- * 
+ *
  * Mobile-first design:
  * - Hero component: most prominent element on dashboard
  * - Large, clear status icon visible at a glance
@@ -66,19 +66,19 @@ export function WaterQualityStatus({
   return (
     <Card className={cn('overflow-hidden', className)}>
       {/* Compact header on mobile */}
-      <CardHeader className="pb-2 px-4 sm:px-6 pt-4 sm:pt-6">
+      <CardHeader className="px-4 pb-2 pt-4 sm:px-6 sm:pt-6">
         <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-          <Droplets className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+          <Droplets className="h-5 w-5 text-primary sm:h-6 sm:w-6" />
           Water Quality Status
         </CardTitle>
       </CardHeader>
-      <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+      <CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
         {/* Main status indicator - full width hero style on mobile */}
         <div
           className={cn(
             'flex flex-col items-center justify-center rounded-xl border-2 transition-all',
             // Generous padding for mobile readability
-            'p-5 sm:p-6 lg:p-8',
+            'p-4 sm:p-6 lg:p-8',
             STATUS_BG[status]
           )}
         >
@@ -101,11 +101,11 @@ export function WaterQualityStatus({
           </div>
 
           {/* Status text - clear and prominent */}
-          <div className="mt-4 sm:mt-5 text-center">
+          <div className="mt-4 text-center sm:mt-5">
             <h3
               className={cn(
                 // Larger text on mobile for immediate readability
-                'text-xl sm:text-2xl lg:text-3xl font-bold',
+                'text-xl font-bold sm:text-2xl lg:text-3xl',
                 ICON_COLORS[status]
               )}
             >
@@ -115,7 +115,7 @@ export function WaterQualityStatus({
                   ? 'Caution Advised'
                   : 'Not Safe to Drink'}
             </h3>
-            <p className="mt-2 text-sm sm:text-base text-muted-foreground max-w-xs mx-auto">
+            <p className="mx-auto mt-2 max-w-xs text-sm text-muted-foreground sm:text-base">
               {status === WATER_STATUS.SAFE
                 ? 'All parameters within safe limits'
                 : status === WATER_STATUS.WARNING
@@ -125,18 +125,18 @@ export function WaterQualityStatus({
           </div>
 
           {/* Potability score and badge - touch-friendly layout */}
-          <div className="mt-5 sm:mt-6 flex flex-col sm:flex-row items-center gap-4">
+          <div className="mt-5 flex flex-col items-center gap-4 sm:mt-6 sm:flex-row">
             {/* Large, tappable badge */}
-            <Badge 
-              variant={status} 
-              className="px-4 py-1.5 text-sm sm:text-base font-medium"
+            <Badge
+              variant={status}
+              className="px-4 py-1.5 text-sm font-medium sm:text-base"
             >
               {statusConfig.label}
             </Badge>
             {/* Score display - prominent numbers */}
             <div className="text-center">
-              <span className="text-3xl sm:text-4xl font-bold">{score}%</span>
-              <p className="text-xs sm:text-sm text-muted-foreground">
+              <span className="text-3xl font-bold sm:text-4xl">{score}%</span>
+              <p className="text-xs text-muted-foreground sm:text-sm">
                 Potability Score
               </p>
             </div>

@@ -1,7 +1,7 @@
 /**
  * Dashboard Index Page (Home)
  * Main overview page showing water quality status and sensor readings
- * 
+ *
  * Mobile-first layout principles:
  * - Water quality status first (most critical info)
  * - Stacked layout on mobile, grid on larger screens
@@ -41,8 +41,7 @@ export const meta = () => {
     { title: 'Dashboard | RainWater Monitoring System' },
     {
       name: 'description',
-      content:
-        'Monitor your smart rainwater harvesting system in real-time',
+      content: 'Monitor your smart rainwater harvesting system in real-time',
     },
   ];
 };
@@ -67,7 +66,7 @@ export const loader = async () => {
 
 /**
  * Dashboard Page Component
- * 
+ *
  * Layout structure (mobile-first):
  * 1. Hero section: Water quality status (most important, always visible first)
  * 2. Tank level (quick glance at water availability)
@@ -81,13 +80,13 @@ export default function DashboardPage() {
     useLoaderData();
 
   return (
-    <div className="space-y-5 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Page header - compact on mobile */}
       <div className="flex flex-col gap-0.5 sm:gap-1">
-        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">
+        <h1 className="text-xl font-bold tracking-tight sm:text-2xl lg:text-3xl">
           Dashboard
         </h1>
-        <p className="text-sm sm:text-base text-muted-foreground">
+        <p className="text-sm text-muted-foreground sm:text-base">
           Rainwater quality and system status
         </p>
       </div>
@@ -108,14 +107,10 @@ export default function DashboardPage() {
         Tank level + 2 key stats on mobile
         Horizontal scroll or stacked layout
       */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {/* Tank level - key visual indicator */}
-        <TankLevel
-          level={system.tankLevel}
-          capacity={1000}
-          trend={1}
-        />
-        
+        <TankLevel level={system.tankLevel} capacity={1000} trend={1} />
+
         {/* Key stats - potability and today's collection */}
         <StatCard
           title="Water Today"
@@ -139,7 +134,7 @@ export default function DashboardPage() {
         ADDITIONAL STATS (collapsed on mobile, expanded on desktop)
         Less critical stats appear below the fold
       */}
-      <div className="grid gap-4 grid-cols-2 lg:hidden">
+      <div className="grid grid-cols-2 gap-4 lg:hidden">
         <StatCard
           title="Uptime"
           value={stats.systemUptime}
@@ -158,7 +153,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Desktop-only: full stats row */}
-      <div className="hidden lg:grid gap-4 lg:grid-cols-4">
+      <div className="hidden gap-4 lg:grid lg:grid-cols-4">
         <StatCard
           title="Water Collected Today"
           value={stats.todayWaterCollected}
@@ -199,7 +194,7 @@ export default function DashboardPage() {
       */}
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Sensor Readings</h2>
-        <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
           <SensorCard
             type="ph"
             value={sensors.ph}
@@ -254,9 +249,9 @@ export default function DashboardPage() {
           <SystemControls initialStatus={system} />
         </section>
 
-        <section className="space-y-3">
+        <section className="flex flex-col space-y-3">
           <h2 className="text-lg font-semibold">Recent Activity</h2>
-          <ActivityLog logs={logs} maxHeight={250} />
+          <ActivityLog logs={logs} />
         </section>
       </div>
     </div>

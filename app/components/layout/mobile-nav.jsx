@@ -1,7 +1,7 @@
 /**
  * MobileNav Component
  * Bottom navigation bar for mobile devices
- * 
+ *
  * MOBILE UX IMPROVEMENTS:
  * - Fixed bottom position in thumb's natural reach zone
  * - Touch targets: 56px height for comfortable tapping
@@ -13,12 +13,7 @@
 
 import { NavLink } from '@remix-run/react';
 import { cn } from '~/lib/utils';
-import {
-  LayoutDashboard,
-  Gauge,
-  History,
-  Settings,
-} from 'lucide-react';
+import { LayoutDashboard, Gauge, History, Settings } from 'lucide-react';
 
 /**
  * Navigation items - same as sidebar for consistency
@@ -60,13 +55,14 @@ function MobileNavItem({ item }) {
         cn(
           // BASE: 56px height for comfortable touch (exceeds 48px minimum)
           'flex flex-col items-center justify-center gap-1.5',
-          'min-h-[56px] flex-1 py-2',
+          // Fixed width per item to prevent overflow (4 items = ~25% each with some margin)
+          'min-h-[56px] w-[22%] max-w-[80px] py-2',
           'rounded-xl transition-all duration-200',
           'touch-action-manipulation',
           // Active state - clear visual distinction
           isActive
-            ? 'text-primary bg-primary/10'
-            : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
+            ? 'bg-primary/10 text-primary'
+            : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
           // Touch feedback
           'active:scale-95 active:bg-muted',
           // Focus state for accessibility
@@ -90,8 +86,10 @@ export function MobileNav() {
   return (
     <nav
       className={cn(
-        // Fixed bottom position
-        'fixed bottom-0 left-0 right-0 z-50',
+        // Fixed bottom position - use inset-x-0 for proper containment
+        'fixed inset-x-0 bottom-0 z-50',
+        // Explicit width constraint to prevent overflow
+        'w-full max-w-full',
         // Only show on mobile (hidden on lg and up)
         'lg:hidden',
         // Visual styling - frosted glass effect
@@ -103,8 +101,8 @@ export function MobileNav() {
       role="navigation"
       aria-label="Mobile navigation"
     >
-      {/* Inner container with padding */}
-      <div className="flex items-center justify-around px-2 py-1.5 gap-1">
+      {/* Inner container - use justify-evenly for better distribution without overflow */}
+      <div className="flex w-full items-center justify-evenly px-1 py-1.5">
         {NAV_ITEMS.map((item) => (
           <MobileNavItem key={item.href} item={item} />
         ))}

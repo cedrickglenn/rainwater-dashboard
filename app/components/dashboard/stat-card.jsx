@@ -1,7 +1,7 @@
 /**
  * StatCard Component
  * Simple statistics display card
- * 
+ *
  * Mobile-first design:
  * - Larger icons for touch-friendly interface
  * - Generous padding for easier interaction
@@ -39,7 +39,7 @@ export function StatCard({
   return (
     <Card className={cn('touch-manipulation', className)}>
       {/* Generous padding for touch: p-5 mobile, p-6 larger screens */}
-      <CardContent className="p-5 sm:p-6">
+      <CardContent className="p-4 sm:p-6">
         <div className="flex items-start justify-between">
           {/* Larger icon container (44px+) */}
           {Icon && (
@@ -65,11 +65,15 @@ export function StatCard({
 
         {/* Stat content with larger text */}
         <div className="mt-4">
-          <p className="text-sm sm:text-base text-muted-foreground font-medium">{title}</p>
+          <p className="text-sm font-medium text-muted-foreground sm:text-base">
+            {title}
+          </p>
           <div className="mt-1.5 flex items-baseline gap-1.5">
-            <span className="text-2xl sm:text-3xl font-bold">{value}</span>
+            <span className="text-2xl font-bold sm:text-3xl">{value}</span>
             {unit && (
-              <span className="text-sm sm:text-base text-muted-foreground">{unit}</span>
+              <span className="text-sm text-muted-foreground sm:text-base">
+                {unit}
+              </span>
             )}
           </div>
         </div>

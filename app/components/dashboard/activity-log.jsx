@@ -54,7 +54,7 @@ const LOG_STYLES = {
 
 /**
  * ActivityLogItem Component
- * Individual log entry
+ * Individual log entry with stacked layout for reliable responsiveness
  */
 function ActivityLogItem({ log }) {
   const Icon = LOG_ICONS[log.type] || Info;
@@ -63,36 +63,41 @@ function ActivityLogItem({ log }) {
   return (
     <div
       className={cn(
-        'flex gap-3 rounded-r-lg border-l-4 p-3 transition-colors hover:bg-muted/50',
+        'grid grid-cols-[auto_1fr] gap-3 rounded-r-lg border-l-4 p-3 transition-colors hover:bg-muted/50',
         styles.border
       )}
     >
-      {/* Icon */}
-      <div className={cn('rounded-full p-1.5', styles.bg)}>
+      {/* Icon - fixed size */}
+      <div className={cn('shrink-0 rounded-full p-1.5', styles.bg)}>
         <Icon className={cn('h-4 w-4', styles.icon)} />
       </div>
 
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-2">
-          <p className="text-sm font-medium leading-none truncate">
-            {log.message}
+      {/* Content - uses CSS Grid for predictable sizing */}
+      <div className="min-w-0 space-y-1.5">
+        {/* Message - allowed to wrap naturally */}
+        <p className="break-words text-sm font-medium leading-snug">
+          {log.message}
+        </p>
+
+        {/* Details row */}
+        {log.details && (
+          <p className="break-words text-xs text-muted-foreground">
+            {log.details}
           </p>
+        )}
+
+        {/* Meta row: timestamp + badge */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            {formatLogDate(log.timestamp)}
+          </span>
           <Badge
             variant={log.type}
-            className="text-[10px] px-1.5 flex-shrink-0"
+            className="px-1.5 py-0 text-[10px] uppercase tracking-wide"
           >
             {log.category}
           </Badge>
         </div>
-        {log.details && (
-          <p className="mt-1 text-xs text-muted-foreground truncate">
-            {log.details}
-          </p>
-        )}
-        <p className="mt-1 text-xs text-muted-foreground">
-          {formatLogDate(log.timestamp)}
-        </p>
       </div>
     </div>
   );
@@ -106,30 +111,25 @@ function ActivityLogItem({ log }) {
  * @param {boolean} props.showTitle - Whether to show the title
  * @param {string} props.className - Additional CSS classes
  */
-export function ActivityLog({
-  logs = [],
-  maxHeight = 400,
-  showTitle = true,
-  className,
-}) {
+export function ActivityLog({ logs = [], showTitle = true, className }) {
   return (
-    <Card className={cn('', className)}>
+    <Card className={cn('grow overflow-hidden', className)}>
       {showTitle && (
-        <CardHeader className="pb-3">
+        <CardHeader className="px-4 pb-3 pt-4 lg:px-6">
           <CardTitle className="flex items-center gap-2 text-lg">
             <Activity className="h-5 w-5 text-primary" />
             Recent Activity
           </CardTitle>
         </CardHeader>
       )}
-      <CardContent className={cn(showTitle ? '' : 'pt-6')}>
-        <ScrollArea style={{ height: maxHeight }}>
-          <div className="space-y-2 pr-4">
+      <CardContent className="flex grow flex-col px-4 pb-4 pt-0 lg:px-6 lg:pb-6">
+        <ScrollArea className="h-[250px]">
+          <div className="space-y-2 pr-3">
             {logs.length > 0 ? (
               logs.map((log) => <ActivityLogItem key={log.id} log={log} />)
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                <Activity className="h-8 w-8 mb-2 opacity-50" />
+                <Activity className="mb-2 h-8 w-8 opacity-50" />
                 <p className="text-sm">No recent activity</p>
               </div>
             )}
