@@ -96,8 +96,7 @@ function SensorDetailCard({ type, value, data }) {
   const avgRecent =
     recentData.reduce((sum, d) => sum + d[type], 0) / recentData.length;
   const trend = value > avgRecent ? 1 : value < avgRecent ? -1 : 0;
-  const TrendIcon =
-    trend > 0 ? TrendingUp : trend < 0 ? TrendingDown : Minus;
+  const TrendIcon = trend > 0 ? TrendingUp : trend < 0 ? TrendingDown : Minus;
 
   return (
     <Card className="overflow-hidden">
@@ -131,7 +130,9 @@ function SensorDetailCard({ type, value, data }) {
             )}
           >
             <TrendIcon className="h-4 w-4" />
-            <span>{trend > 0 ? 'Rising' : trend < 0 ? 'Falling' : 'Stable'}</span>
+            <span>
+              {trend > 0 ? 'Rising' : trend < 0 ? 'Falling' : 'Stable'}
+            </span>
           </div>
         </div>
 
@@ -153,13 +154,13 @@ function SensorDetailCard({ type, value, data }) {
         </div>
 
         {/* Description */}
-        <p className="text-sm text-muted-foreground flex items-start gap-2">
-          <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+        <p className="flex items-start gap-2 text-sm text-muted-foreground">
+          <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
           {metadata.description}
         </p>
 
         {/* Mini chart */}
-        <div className="h-32 -mx-2">
+        <div className="-mx-2 h-32">
           <SensorAreaChart
             data={data.slice(-12)}
             dataKey={type}
@@ -191,9 +192,9 @@ export default function SensorsPage() {
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
             Sensors
           </h1>
           <p className="text-muted-foreground">
@@ -203,7 +204,7 @@ export default function SensorsPage() {
 
         <div className="flex items-center gap-2">
           <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger className="w-32">
+            <SelectTrigger className="w-[140px] sm:w-[160px]">
               <SelectValue placeholder="Time range" />
             </SelectTrigger>
             <SelectContent>
@@ -311,7 +312,11 @@ export default function SensorsPage() {
             lines={[
               { dataKey: 'ph', name: 'pH', type: 'ph' },
               { dataKey: 'turbidity', name: 'Turbidity', type: 'turbidity' },
-              { dataKey: 'temperature', name: 'Temperature', type: 'temperature' },
+              {
+                dataKey: 'temperature',
+                name: 'Temperature',
+                type: 'temperature',
+              },
             ]}
           />
         </TabsContent>

@@ -7,7 +7,13 @@ import { json } from '@remix-run/node';
 import { useLoaderData, useFetcher } from '@remix-run/react';
 import { useState } from 'react';
 import { cn } from '~/lib/utils';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '~/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from '~/components/ui/card';
 import { Button } from '~/components/ui/button';
 import { Switch } from '~/components/ui/switch';
 import { Label } from '~/components/ui/label';
@@ -130,6 +136,7 @@ export default function SettingsPage() {
   const [systemControls, setSystemControls] = useState(settings.systemControls);
   const [dataLogging, setDataLogging] = useState(settings.dataLogging);
   const [calibration, setCalibration] = useState(settings.sensorCalibration);
+  const [activeTab, setActiveTab] = useState('notifications');
 
   // Handle notification toggle
   const handleNotificationChange = (key, value) => {
@@ -167,7 +174,7 @@ export default function SettingsPage() {
     <div className="space-y-6">
       {/* Page header */}
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
           Settings
         </h1>
         <p className="text-muted-foreground">
@@ -185,7 +192,7 @@ export default function SettingsPage() {
         )}
       >
         <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
             <div className="flex items-center gap-3">
               {system.systemHealth === 'good' ? (
                 <CheckCircle2 className="h-8 w-8 text-green-500" />
@@ -193,9 +200,15 @@ export default function SettingsPage() {
                 <AlertCircle className="h-8 w-8 text-amber-500" />
               )}
               <div>
-                <p className="font-medium">System Status: {system.systemHealth === 'good' ? 'Operational' : 'Needs Attention'}</p>
+                <p className="font-medium">
+                  System Status:{' '}
+                  {system.systemHealth === 'good'
+                    ? 'Operational'
+                    : 'Needs Attention'}
+                </p>
                 <p className="text-sm text-muted-foreground">
-                  Last maintenance: {formatDate(system.lastMaintenance)} • Next maintenance: {formatDate(system.nextMaintenance)}
+                  Last maintenance: {formatDate(system.lastMaintenance)} • Next
+                  maintenance: {formatDate(system.nextMaintenance)}
                 </p>
               </div>
             </div>
@@ -214,27 +227,73 @@ export default function SettingsPage() {
       </Card>
 
       {/* Settings tabs */}
-      <Tabs defaultValue="notifications" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="space-y-6"
+      >
+        {/* Mobile: Select dropdown */}
+        <div className="sm:hidden">
+          <Select value={activeTab} onValueChange={setActiveTab}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select section" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="notifications">
+                <span className="flex items-center gap-2">
+                  <Bell className="h-4 w-4" />
+                  Notifications
+                </span>
+              </SelectItem>
+              <SelectItem value="display">
+                <span className="flex items-center gap-2">
+                  <Palette className="h-4 w-4" />
+                  Display
+                </span>
+              </SelectItem>
+              <SelectItem value="sensors">
+                <span className="flex items-center gap-2">
+                  <Gauge className="h-4 w-4" />
+                  Sensors
+                </span>
+              </SelectItem>
+              <SelectItem value="system">
+                <span className="flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  System
+                </span>
+              </SelectItem>
+              <SelectItem value="data">
+                <span className="flex items-center gap-2">
+                  <Database className="h-4 w-4" />
+                  Data
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Desktop: Regular tabs */}
+        <TabsList className="hidden w-full grid-cols-5 sm:grid">
           <TabsTrigger value="notifications" className="gap-2">
             <Bell className="h-4 w-4" />
-            <span className="hidden sm:inline">Notifications</span>
+            Notifications
           </TabsTrigger>
           <TabsTrigger value="display" className="gap-2">
             <Palette className="h-4 w-4" />
-            <span className="hidden sm:inline">Display</span>
+            Display
           </TabsTrigger>
           <TabsTrigger value="sensors" className="gap-2">
             <Gauge className="h-4 w-4" />
-            <span className="hidden sm:inline">Sensors</span>
+            Sensors
           </TabsTrigger>
           <TabsTrigger value="system" className="gap-2">
             <Settings className="h-4 w-4" />
-            <span className="hidden sm:inline">System</span>
+            System
           </TabsTrigger>
           <TabsTrigger value="data" className="gap-2">
             <Database className="h-4 w-4" />
-            <span className="hidden sm:inline">Data</span>
+            Data
           </TabsTrigger>
         </TabsList>
 
@@ -300,8 +359,11 @@ export default function SettingsPage() {
           </SettingsSection>
 
           <div className="flex justify-end">
-            <Button onClick={() => handleSave('notifications')} disabled={isLoading}>
-              <Save className="h-4 w-4 mr-2" />
+            <Button
+              onClick={() => handleSave('notifications')}
+              disabled={isLoading}
+            >
+              <Save className="mr-2 h-4 w-4" />
               Save Notifications
             </Button>
           </div>
@@ -327,7 +389,7 @@ export default function SettingsPage() {
                   size="sm"
                   onClick={() => handleDisplayChange('theme', 'light')}
                 >
-                  <Sun className="h-4 w-4 mr-1" />
+                  <Sun className="mr-1 h-4 w-4" />
                   Light
                 </Button>
                 <Button
@@ -335,7 +397,7 @@ export default function SettingsPage() {
                   size="sm"
                   onClick={() => handleDisplayChange('theme', 'dark')}
                 >
-                  <Moon className="h-4 w-4 mr-1" />
+                  <Moon className="mr-1 h-4 w-4" />
                   Dark
                 </Button>
                 <Button
@@ -343,7 +405,7 @@ export default function SettingsPage() {
                   size="sm"
                   onClick={() => handleDisplayChange('theme', 'system')}
                 >
-                  <Monitor className="h-4 w-4 mr-1" />
+                  <Monitor className="mr-1 h-4 w-4" />
                   System
                 </Button>
               </div>
@@ -351,7 +413,9 @@ export default function SettingsPage() {
             <Separator />
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label className="text-sm font-medium">Chart Refresh Rate</Label>
+                <Label className="text-sm font-medium">
+                  Chart Refresh Rate
+                </Label>
                 <p className="text-xs text-muted-foreground">
                   How often to update charts
                 </p>
@@ -400,7 +464,7 @@ export default function SettingsPage() {
 
           <div className="flex justify-end">
             <Button onClick={() => handleSave('display')} disabled={isLoading}>
-              <Save className="h-4 w-4 mr-2" />
+              <Save className="mr-2 h-4 w-4" />
               Save Display
             </Button>
           </div>
@@ -417,7 +481,9 @@ export default function SettingsPage() {
               <div key={key} className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label className="text-sm font-medium">{threshold.name}</Label>
+                    <Label className="text-sm font-medium">
+                      {threshold.name}
+                    </Label>
                     <p className="text-xs text-muted-foreground">
                       Offset adjustment ({threshold.unit})
                     </p>
@@ -437,9 +503,10 @@ export default function SettingsPage() {
                 <Separator />
               </div>
             ))}
-            <p className="text-xs text-muted-foreground mt-4">
+            <p className="mt-4 text-xs text-muted-foreground">
               Note: Calibration changes will be applied to all new readings.
-              Consult your sensor documentation for proper calibration procedures.
+              Consult your sensor documentation for proper calibration
+              procedures.
             </p>
           </SettingsSection>
 
@@ -448,11 +515,14 @@ export default function SettingsPage() {
               variant="outline"
               onClick={() => setCalibration(settings.sensorCalibration)}
             >
-              <RotateCcw className="h-4 w-4 mr-2" />
+              <RotateCcw className="mr-2 h-4 w-4" />
               Reset
             </Button>
-            <Button onClick={() => handleSave('calibration')} disabled={isLoading}>
-              <Save className="h-4 w-4 mr-2" />
+            <Button
+              onClick={() => handleSave('calibration')}
+              disabled={isLoading}
+            >
+              <Save className="mr-2 h-4 w-4" />
               Save Calibration
             </Button>
           </div>
@@ -492,7 +562,10 @@ export default function SettingsPage() {
                     type="time"
                     value={systemControls.uvScheduleStart}
                     onChange={(e) =>
-                      handleSystemControlChange('uvScheduleStart', e.target.value)
+                      handleSystemControlChange(
+                        'uvScheduleStart',
+                        e.target.value
+                      )
                     }
                     className="rounded-md border bg-background px-2 py-1"
                   />
@@ -524,7 +597,7 @@ export default function SettingsPage() {
 
           <div className="flex justify-end">
             <Button onClick={() => handleSave('system')} disabled={isLoading}>
-              <Save className="h-4 w-4 mr-2" />
+              <Save className="mr-2 h-4 w-4" />
               Save System
             </Button>
           </div>
@@ -621,7 +694,7 @@ export default function SettingsPage() {
 
           <div className="flex justify-end">
             <Button onClick={() => handleSave('data')} disabled={isLoading}>
-              <Save className="h-4 w-4 mr-2" />
+              <Save className="mr-2 h-4 w-4" />
               Save Data Settings
             </Button>
           </div>

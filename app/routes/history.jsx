@@ -106,7 +106,7 @@ function LogEntry({ log, isExpanded, onToggle }) {
   return (
     <div
       className={cn(
-        'rounded-lg border p-4 transition-all cursor-pointer hover:shadow-sm',
+        'cursor-pointer rounded-lg border p-4 transition-all hover:shadow-sm',
         styles.bg
       )}
       onClick={onToggle}
@@ -118,7 +118,7 @@ function LogEntry({ log, isExpanded, onToggle }) {
         </div>
 
         {/* Content */}
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <p className="font-medium">{log.message}</p>
             <Badge variant={styles.badge} className="flex-shrink-0">
@@ -164,16 +164,20 @@ function DailySummary({ data }) {
             <p className="text-sm text-muted-foreground">
               {formatDate(data.date, 'EEEE, MMM dd')}
             </p>
-            <p className="text-2xl font-bold">{data.potabilityScore.toFixed(0)}%</p>
+            <p className="text-2xl font-bold">
+              {data.potabilityScore.toFixed(0)}%
+            </p>
             <p className="text-xs text-muted-foreground">Potability Score</p>
           </div>
-          <div className="text-right space-y-1 text-sm">
+          <div className="space-y-1 text-right text-sm">
             <p>
               pH: <span className="font-medium">{data.avgPh.toFixed(2)}</span>
             </p>
             <p>
               Turb:{' '}
-              <span className="font-medium">{data.avgTurbidity.toFixed(1)}</span>
+              <span className="font-medium">
+                {data.avgTurbidity.toFixed(1)}
+              </span>
             </p>
             <p>
               TDS: <span className="font-medium">{data.avgTds.toFixed(0)}</span>
@@ -221,20 +225,17 @@ export default function HistoryPage() {
   const categories = [...new Set(logs.map((log) => log.category))];
 
   // Count logs by type
-  const logCounts = logs.reduce(
-    (acc, log) => {
-      acc[log.type] = (acc[log.type] || 0) + 1;
-      return acc;
-    },
-    {}
-  );
+  const logCounts = logs.reduce((acc, log) => {
+    acc[log.type] = (acc[log.type] || 0) + 1;
+    return acc;
+  }, {});
 
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
             History & Logs
           </h1>
           <p className="text-muted-foreground">
@@ -243,15 +244,15 @@ export default function HistoryPage() {
         </div>
 
         <Button variant="outline">
-          <Download className="h-4 w-4 mr-2" />
+          <Download className="mr-2 h-4 w-4" />
           Export Logs
         </Button>
       </div>
 
       {/* Quick stats */}
       <div className="grid gap-4 sm:grid-cols-4">
-        <Card className="bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900">
-          <CardContent className="p-4 flex items-center gap-3">
+        <Card className="border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30">
+          <CardContent className="flex items-center gap-3 p-4">
             <Info className="h-8 w-8 text-blue-500" />
             <div>
               <p className="text-2xl font-bold">{logCounts.info || 0}</p>
@@ -259,8 +260,8 @@ export default function HistoryPage() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900">
-          <CardContent className="p-4 flex items-center gap-3">
+        <Card className="border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30">
+          <CardContent className="flex items-center gap-3 p-4">
             <CheckCircle2 className="h-8 w-8 text-green-500" />
             <div>
               <p className="text-2xl font-bold">{logCounts.success || 0}</p>
@@ -268,8 +269,8 @@ export default function HistoryPage() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900">
-          <CardContent className="p-4 flex items-center gap-3">
+        <Card className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30">
+          <CardContent className="flex items-center gap-3 p-4">
             <AlertTriangle className="h-8 w-8 text-amber-500" />
             <div>
               <p className="text-2xl font-bold">{logCounts.warning || 0}</p>
@@ -277,8 +278,8 @@ export default function HistoryPage() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900">
-          <CardContent className="p-4 flex items-center gap-3">
+        <Card className="border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30">
+          <CardContent className="flex items-center gap-3 p-4">
             <XCircle className="h-8 w-8 text-red-500" />
             <div>
               <p className="text-2xl font-bold">{logCounts.error || 0}</p>
@@ -305,22 +306,22 @@ export default function HistoryPage() {
           {/* Filters */}
           <Card>
             <CardContent className="p-4">
-              <div className="flex flex-col sm:flex-row gap-4">
-                {/* Search */}
-                <div className="flex-1 flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2">
-                  <Search className="h-4 w-4 text-muted-foreground" />
+              <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-row sm:gap-4">
+                {/* Search - full width on mobile */}
+                <div className="col-span-2 flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2 sm:col-span-1 sm:flex-1">
+                  <Search className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                   <input
                     type="text"
                     placeholder="Search logs..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                    className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                   />
                 </div>
 
                 {/* Type filter */}
                 <Select value={filterType} onValueChange={setFilterType}>
-                  <SelectTrigger className="w-32">
+                  <SelectTrigger className="w-full sm:w-32">
                     <SelectValue placeholder="Type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -337,7 +338,7 @@ export default function HistoryPage() {
                   value={filterCategory}
                   onValueChange={setFilterCategory}
                 >
-                  <SelectTrigger className="w-36">
+                  <SelectTrigger className="w-full sm:w-36">
                     <SelectValue placeholder="Category" />
                   </SelectTrigger>
                   <SelectContent>
@@ -369,7 +370,7 @@ export default function HistoryPage() {
             ) : (
               <Card>
                 <CardContent className="p-8 text-center">
-                  <History className="h-12 w-12 mx-auto text-muted-foreground/50" />
+                  <History className="mx-auto h-12 w-12 text-muted-foreground/50" />
                   <p className="mt-4 text-muted-foreground">
                     No logs found matching your filters.
                   </p>
