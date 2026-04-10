@@ -19,6 +19,7 @@ import {
   Gauge,
   History,
   Settings,
+  SlidersHorizontal,
   Droplets,
   ChevronLeft,
   X,
@@ -45,6 +46,12 @@ const NAV_ITEMS = [
     href: '/history',
     icon: History,
     description: 'Logs and data',
+  },
+  {
+    name: 'Calibration',
+    href: '/calibration',
+    icon: SlidersHorizontal,
+    description: 'Sensor calibration',
   },
   {
     name: 'Settings',
