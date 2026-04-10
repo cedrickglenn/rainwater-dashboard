@@ -20,6 +20,7 @@ import {
   History,
   Settings,
   SlidersHorizontal,
+  Wrench,
   Droplets,
   ChevronLeft,
   X,
@@ -46,6 +47,12 @@ const NAV_ITEMS = [
     href: '/history',
     icon: History,
     description: 'Logs and data',
+  },
+  {
+    name: 'Actuators',
+    href: '/actuators',
+    icon: Wrench,
+    description: 'Manual pump & valve control',
   },
   {
     name: 'Calibration',
