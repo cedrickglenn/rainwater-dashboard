@@ -4,7 +4,7 @@
  */
 
 import { json } from '@remix-run/node';
-import { useLoaderData } from '@remix-run/react';
+import { useLoaderData, useRevalidator } from '@remix-run/react';
 import { useState } from 'react';
 import { cn } from '~/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
@@ -37,11 +37,8 @@ import {
 } from 'lucide-react';
 
 // Data and utilities
-import {
-  currentSensorData,
-  historicalData,
-  sensorMetadata,
-} from '~/data/mock-data';
+import { sensorMetadata } from '~/data/mock-data';
+import { getDb } from '~/lib/db.server';
 import {
   SENSOR_THRESHOLDS,
   getSensorStatus,
@@ -60,14 +57,37 @@ export const meta = () => {
   ];
 };
 
-/**
- * Loader function
- */
-export const loader = async () => {
-  return json({
-    sensors: currentSensorData,
-    historical: historicalData,
-  });
+export const loader = async ({ request }) => {
+  const url   = new URL(request.url);
+  const range = url.searchParams.get('range') ?? '24h';
+  const hours = range === 'week' ? 168 : 24;
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+
+  const db = await getDb();
+  const [latestDoc, historyDocs] = await Promise.all([
+    db.collection('sensor_readings').findOne({}, { sort: { timestamp: -1 } }),
+    db.collection('sensor_readings')
+      .find({ timestamp: { $gte: since } })
+      .sort({ timestamp: 1 })
+      .toArray(),
+  ]);
+
+  const sensors = {
+    ph:          latestDoc?.ph_c6   ?? null,
+    turbidity:   latestDoc?.turb_c6 ?? null,
+    temperature: latestDoc?.temp_c6 ?? null,
+    tds:         null,
+    lastUpdated: latestDoc?.timestamp ?? null,
+  };
+
+  const historical = historyDocs.map((doc) => ({
+    timestamp:   doc.timestamp,
+    ph:          doc.ph_c6   ?? null,
+    turbidity:   doc.turb_c6 ?? null,
+    temperature: doc.temp_c6 ?? null,
+  }));
+
+  return json({ sensors, historical });
 };
 
 /**
@@ -85,17 +105,21 @@ const SENSOR_ICONS = {
  */
 function SensorDetailCard({ type, value, data }) {
   const threshold = SENSOR_THRESHOLDS[type];
+  const hasValue  = value != null;
   const status = getSensorStatus(type, value);
   const statusConfig = STATUS_CONFIG[status];
-  const percentage = getSafeRangePercentage(type, value);
+  const percentage = hasValue ? getSafeRangePercentage(type, value) : 0;
   const Icon = SENSOR_ICONS[type];
   const metadata = sensorMetadata[type];
 
-  // Determine trend from historical data
-  const recentData = data.slice(-5);
-  const avgRecent =
-    recentData.reduce((sum, d) => sum + d[type], 0) / recentData.length;
-  const trend = value > avgRecent ? 1 : value < avgRecent ? -1 : 0;
+  // Determine trend from historical data — only when we have a real value
+  const recentData = data.slice(-5).filter((d) => d[type] != null);
+  const avgRecent  = recentData.length
+    ? recentData.reduce((sum, d) => sum + d[type], 0) / recentData.length
+    : null;
+  const trend = hasValue && avgRecent != null
+    ? value > avgRecent ? 1 : value < avgRecent ? -1 : 0
+    : 0;
   const TrendIcon = trend > 0 ? TrendingUp : trend < 0 ? TrendingDown : Minus;
 
   return (
@@ -117,10 +141,14 @@ function SensorDetailCard({ type, value, data }) {
       <CardContent className="space-y-4">
         {/* Value display */}
         <div className="flex items-baseline gap-2">
-          <span className="text-4xl font-bold">{value.toFixed(2)}</span>
-          <span className="text-lg text-muted-foreground">
-            {threshold.unit}
+          <span className={cn('text-4xl font-bold', !hasValue && 'text-muted-foreground')}>
+            {hasValue ? value.toFixed(2) : '—'}
           </span>
+          {hasValue && (
+            <span className="text-lg text-muted-foreground">
+              {threshold.unit}
+            </span>
+          )}
           <div
             className={cn(
               'ml-auto flex items-center gap-1 text-sm',
@@ -181,13 +209,10 @@ function SensorDetailCard({ type, value, data }) {
 export default function SensorsPage() {
   const { sensors, historical } = useLoaderData();
   const [timeRange, setTimeRange] = useState('24h');
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const revalidator = useRevalidator();
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setIsRefreshing(false);
-  };
+  const handleRefresh = () => revalidator.revalidate();
+  const isRefreshing = revalidator.state === 'loading';
 
   return (
     <div className="space-y-6">
@@ -239,7 +264,9 @@ export default function SensorsPage() {
           <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500"></span>
         </span>
         <span>
-          Live data • Last updated {formatRelativeTime(sensors.lastUpdated)}
+          {sensors.lastUpdated
+            ? `Live data • Last updated ${formatRelativeTime(sensors.lastUpdated)}`
+            : 'Awaiting first sensor reading…'}
         </span>
       </div>
 

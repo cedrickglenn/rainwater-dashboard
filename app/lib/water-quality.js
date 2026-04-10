@@ -56,6 +56,7 @@ export const WATER_STATUS = {
   SAFE: 'safe',
   WARNING: 'warning',
   UNSAFE: 'unsafe',
+  UNKNOWN: 'unknown', // sensor not present or no data yet
 };
 
 /**
@@ -83,6 +84,13 @@ export const STATUS_CONFIG = {
     borderColor: 'border-red-500',
     dotColor: 'bg-red-500',
   },
+  [WATER_STATUS.UNKNOWN]: {
+    label: 'No Data',
+    color: 'text-muted-foreground',
+    bgColor: 'bg-muted/30',
+    borderColor: 'border-muted',
+    dotColor: 'bg-muted',
+  },
 };
 
 /**
@@ -92,6 +100,8 @@ export const STATUS_CONFIG = {
  * @returns {string} - Status ('safe', 'warning', 'unsafe')
  */
 export function getSensorStatus(sensorType, value) {
+  if (value == null) return WATER_STATUS.UNKNOWN;
+
   const threshold = SENSOR_THRESHOLDS[sensorType];
 
   if (!threshold) {
@@ -145,13 +155,13 @@ export function calculateWaterQuality(sensorData) {
   const statuses = {};
   let overallStatus = WATER_STATUS.SAFE;
 
-  // Check each sensor
+  // Check each sensor — skip null values (sensor not present)
   for (const [sensor, value] of Object.entries(sensorData)) {
     if (SENSOR_THRESHOLDS[sensor]) {
       const status = getSensorStatus(sensor, value);
       statuses[sensor] = status;
 
-      // Upgrade overall status if worse
+      // Upgrade overall status if worse (unknown does not affect overall)
       if (status === WATER_STATUS.UNSAFE) {
         overallStatus = WATER_STATUS.UNSAFE;
       } else if (

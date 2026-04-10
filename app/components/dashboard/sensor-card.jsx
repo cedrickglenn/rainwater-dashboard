@@ -72,18 +72,21 @@ const ICON_COLORS = {
  */
 export function SensorCard({ type, value, trend = 0, lastUpdated, className }) {
   const threshold = SENSOR_THRESHOLDS[type];
+  const hasValue = value != null;
   const status = getSensorStatus(type, value);
   const statusConfig = STATUS_CONFIG[status];
   const Icon = SENSOR_ICONS[type];
 
-  // Get trend icon
-  const TrendIcon = trend > 0 ? TrendingUp : trend < 0 ? TrendingDown : Minus;
+  // Get trend icon — suppress trend when there is no value
+  const TrendIcon = !hasValue || trend === 0 ? Minus : trend > 0 ? TrendingUp : TrendingDown;
   const trendColor =
-    trend > 0
-      ? 'text-green-500'
-      : trend < 0
-        ? 'text-red-500'
-        : 'text-muted-foreground';
+    !hasValue
+      ? 'text-muted-foreground'
+      : trend > 0
+        ? 'text-green-500'
+        : trend < 0
+          ? 'text-red-500'
+          : 'text-muted-foreground';
 
   return (
     <Card
@@ -119,12 +122,14 @@ export function SensorCard({ type, value, trend = 0, lastUpdated, className }) {
 
         {/* Value display - prominent and easy to read */}
         <div className="mt-2 flex items-baseline gap-1.5">
-          <span className="text-3xl font-bold tracking-tight sm:text-4xl">
-            {typeof value === 'number' ? value.toFixed(1) : value}
+          <span className={cn('text-3xl font-bold tracking-tight sm:text-4xl', !hasValue && 'text-muted-foreground')}>
+            {hasValue ? value.toFixed(1) : '—'}
           </span>
-          <span className="text-sm text-muted-foreground sm:text-base">
-            {threshold.unit}
-          </span>
+          {hasValue && (
+            <span className="text-sm text-muted-foreground sm:text-base">
+              {threshold.unit}
+            </span>
+          )}
         </div>
 
         {/* Trend and safe range - larger text */}
@@ -132,12 +137,14 @@ export function SensorCard({ type, value, trend = 0, lastUpdated, className }) {
           <div className="flex items-center gap-1.5">
             <TrendIcon className={cn('h-4 w-4', trendColor)} />
             <span>
-              {trend > 0 ? 'Rising' : trend < 0 ? 'Falling' : 'Stable'}
+              {!hasValue ? 'No sensor data' : trend > 0 ? 'Rising' : trend < 0 ? 'Falling' : 'Stable'}
             </span>
           </div>
-          <span className="text-xs sm:text-sm">
-            Safe: {threshold.safeRange}
-          </span>
+          {hasValue && (
+            <span className="text-xs sm:text-sm">
+              Safe: {threshold.safeRange}
+            </span>
+          )}
         </div>
       </CardContent>
 

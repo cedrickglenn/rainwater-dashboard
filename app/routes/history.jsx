@@ -37,7 +37,9 @@ import {
 } from 'lucide-react';
 
 // Data and utilities
-import { systemLogs, weeklyData } from '~/data/mock-data';
+import { systemLogs } from '~/data/mock-data';
+import { getDb } from '~/lib/db.server';
+import { getSensorStatus, WATER_STATUS } from '~/lib/water-quality';
 import { formatDateTime, formatLogDate, formatDate } from '~/lib/date-utils';
 
 /**
@@ -50,14 +52,47 @@ export const meta = () => {
   ];
 };
 
-/**
- * Loader function
- */
 export const loader = async () => {
-  return json({
-    logs: systemLogs,
-    weeklyStats: weeklyData,
+  const db = await getDb();
+
+  // Aggregate daily averages from the last 7 days using C6 (output) readings
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const dailyDocs = await db.collection('sensor_readings').aggregate([
+    { $match: { timestamp: { $gte: sevenDaysAgo } } },
+    {
+      $group: {
+        _id: {
+          year:  { $year:       '$timestamp' },
+          month: { $month:      '$timestamp' },
+          day:   { $dayOfMonth: '$timestamp' },
+        },
+        date:         { $first: '$timestamp' },
+        avgPh:        { $avg: '$ph_c6' },
+        avgTurbidity: { $avg: '$turb_c6' },
+        avgTemp:      { $avg: '$temp_c6' },
+        count:        { $sum: 1 },
+      },
+    },
+    { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } },
+  ]).toArray();
+
+  // Compute a simple potability score from daily averages
+  const weeklyStats = dailyDocs.map((day) => {
+    const phOk   = day.avgPh   != null && getSensorStatus('ph',        day.avgPh)   === WATER_STATUS.SAFE;
+    const turbOk = day.avgTurbidity != null && getSensorStatus('turbidity', day.avgTurbidity) === WATER_STATUS.SAFE;
+    const score  = phOk && turbOk ? 92 : phOk || turbOk ? 70 : 45;
+
+    return {
+      date:             day.date,
+      avgPh:            day.avgPh        ?? null,
+      avgTurbidity:     day.avgTurbidity ?? null,
+      avgTds:           null, // no TDS sensor
+      avgTemperature:   day.avgTemp      ?? null,
+      potabilityScore:  score,
+    };
   });
+
+  return json({ logs: systemLogs, weeklyStats });
 };
 
 /**
@@ -171,16 +206,22 @@ function DailySummary({ data }) {
           </div>
           <div className="space-y-1 text-right text-sm">
             <p>
-              pH: <span className="font-medium">{data.avgPh.toFixed(2)}</span>
+              pH:{' '}
+              <span className="font-medium">
+                {data.avgPh != null ? data.avgPh.toFixed(2) : '—'}
+              </span>
             </p>
             <p>
               Turb:{' '}
               <span className="font-medium">
-                {data.avgTurbidity.toFixed(1)}
+                {data.avgTurbidity != null ? data.avgTurbidity.toFixed(1) : '—'}
               </span>
             </p>
             <p>
-              TDS: <span className="font-medium">{data.avgTds.toFixed(0)}</span>
+              Temp:{' '}
+              <span className="font-medium">
+                {data.avgTemperature != null ? `${data.avgTemperature.toFixed(1)} °C` : '—'}
+              </span>
             </p>
           </div>
         </div>
@@ -420,11 +461,19 @@ export default function HistoryPage() {
               <CardTitle className="text-lg">Weekly Overview</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {weeklyStats.map((day, index) => (
-                  <DailySummary key={index} data={day} />
-                ))}
-              </div>
+              {weeklyStats.length > 0 ? (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {weeklyStats.map((day, index) => (
+                    <DailySummary key={index} data={day} />
+                  ))}
+                </div>
+              ) : (
+                <div className="py-12 text-center text-muted-foreground">
+                  <Calendar className="mx-auto mb-3 h-10 w-10 opacity-40" />
+                  <p>No sensor data recorded in the last 7 days.</p>
+                  <p className="mt-1 text-sm">Data will appear here once the ESP32 starts posting readings.</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

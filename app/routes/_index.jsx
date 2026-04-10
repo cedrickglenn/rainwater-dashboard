@@ -23,13 +23,8 @@ import { ActivityLog } from '~/components/dashboard/activity-log';
 import { StatCard } from '~/components/dashboard/stat-card';
 
 // Data and utilities
-import {
-  currentSensorData,
-  systemStatus,
-  historicalData,
-  systemLogs,
-  dashboardStats,
-} from '~/data/mock-data';
+import { systemLogs, dashboardStats } from '~/data/mock-data';
+import { getDb } from '~/lib/db.server';
 import { calculateWaterQuality } from '~/lib/water-quality';
 import { formatRelativeTime } from '~/lib/date-utils';
 
@@ -46,21 +41,64 @@ export const meta = () => {
   ];
 };
 
-/**
- * Loader function to fetch data server-side
- * In production, this would fetch from your API
- */
 export const loader = async () => {
-  // Calculate water quality status
-  const waterQuality = calculateWaterQuality(currentSensorData);
+  const db = await getDb();
+
+  const [latestDoc, historyDocs] = await Promise.all([
+    db.collection('sensor_readings').findOne({}, { sort: { timestamp: -1 } }),
+    db.collection('sensor_readings')
+      .find({ timestamp: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } })
+      .sort({ timestamp: 1 })
+      .toArray(),
+  ]);
+
+  // C6 = clean storage (final output) — used as primary display container.
+  // sensors is always a non-null object; missing fields are null so components
+  // can render gracefully before the ESP32 starts posting data.
+  const sensors = {
+    ph:          latestDoc?.ph_c6          ?? null,
+    turbidity:   latestDoc?.turb_c6        ?? null,
+    temperature: latestDoc?.temp_c6        ?? null,
+    tds:         null, // no TDS sensor in this hardware build
+    lastUpdated: latestDoc?.timestamp      ?? null,
+    lvl_c6:      latestDoc?.lvl_c6         ?? 0,
+    filterMode:  latestDoc?.filter_mode    ?? 0,
+    ffState:     latestDoc?.ff_state       ?? 0,
+    backwash:    latestDoc?.backwash_state ?? 0,
+    flow:        latestDoc?.flow           ?? null,
+  };
+
+  const historical = historyDocs.map((doc) => ({
+    timestamp:   doc.timestamp,
+    ph:          doc.ph_c6   ?? null,
+    turbidity:   doc.turb_c6 ?? null,
+    temperature: doc.temp_c6 ?? null,
+  }));
+
+  const waterQuality = calculateWaterQuality({
+    ph:          sensors.ph,
+    turbidity:   sensors.turbidity,
+    temperature: sensors.temperature,
+  });
 
   return json({
-    sensors: currentSensorData,
-    system: systemStatus,
-    historical: historicalData,
-    logs: systemLogs.slice(0, 5), // Latest 5 logs
-    stats: dashboardStats,
+    sensors,
+    historical,
     waterQuality,
+    hasData: !!latestDoc,
+    system: {
+      tankLevel:      sensors.lvl_c6,
+      filterStatus:   sensors.filterMode > 0,
+      uvStatus:       false,
+      pumpStatus:     false,
+      systemHealth:   waterQuality.overall === 'unsafe'  ? 'critical'
+                    : waterQuality.overall === 'warning' ? 'warning'
+                    : 'good',
+      lastMaintenance: null,
+      nextMaintenance: null,
+    },
+    logs:  systemLogs.slice(0, 5),
+    stats: dashboardStats,
   });
 };
 
@@ -99,7 +137,7 @@ export default function DashboardPage() {
       <WaterQualityStatus
         status={waterQuality.overall}
         score={stats.potabilityScore}
-        lastChecked={formatRelativeTime(sensors.lastUpdated)}
+        lastChecked={sensors.lastUpdated ? formatRelativeTime(sensors.lastUpdated) : 'No data yet'}
       />
 
       {/* 
