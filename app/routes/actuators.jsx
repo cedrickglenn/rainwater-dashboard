@@ -9,8 +9,7 @@
  */
 
 import { json } from '@remix-run/node';
-import { useFetcher } from '@remix-run/react';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState } from 'react';
 import { cn } from '~/lib/utils';
 import {
   Card,
@@ -39,94 +38,166 @@ import {
 // ---------------------------------------------------------------------------
 
 const VALVES = [
-  { id: 'V1', label: 'V1',  route: 'C1 → C2',       description: 'Pass-through after first flush' },
-  { id: 'V2', label: 'V2',  route: 'C2 → Filter',    description: 'Charcoal filter intake' },
-  { id: 'V3', label: 'V3',  route: 'Filter → C6',    description: 'Direct bypass — skips RO' },
-  { id: 'V4', label: 'V4',  route: 'Filter → C4',    description: 'To commercial RO path' },
-  { id: 'V5', label: 'V5',  route: 'Filter Drain',   description: 'Backwash drain outlet' },
-  { id: 'V6', label: 'V6',  route: 'C5 → C4',        description: 'Feedback / recycle path' },
-  { id: 'V7', label: 'V7',  route: 'C5 → C6',        description: 'Good water pass-through' },
-  { id: 'V8', label: 'V8',  route: 'First Flush',    description: 'Routes initial rain to drain' },
+  {
+    id: 'V1',
+    label: 'V1',
+    route: 'C1 → C2',
+    description: 'Pass-through after first flush',
+  },
+  {
+    id: 'V2',
+    label: 'V2',
+    route: 'C2 → Filter',
+    description: 'Charcoal filter intake',
+  },
+  {
+    id: 'V3',
+    label: 'V3',
+    route: 'Filter → C6',
+    description: 'Direct bypass — skips RO',
+  },
+  {
+    id: 'V4',
+    label: 'V4',
+    route: 'Filter → C4',
+    description: 'To commercial RO path',
+  },
+  {
+    id: 'V5',
+    label: 'V5',
+    route: 'Filter Drain',
+    description: 'Backwash drain outlet',
+  },
+  {
+    id: 'V6',
+    label: 'V6',
+    route: 'C5 → C4',
+    description: 'Feedback / recycle path',
+  },
+  {
+    id: 'V7',
+    label: 'V7',
+    route: 'C5 → C6',
+    description: 'Good water pass-through',
+  },
+  {
+    id: 'V8',
+    label: 'V8',
+    route: 'First Flush',
+    description: 'Routes initial rain to drain',
+  },
 ];
 
 const PUMPS = [
-  { id: 'P1', label: 'P1',  route: 'C2 → Filter',    description: 'Buffer tank to charcoal filter' },
-  { id: 'P2', label: 'P2',  route: 'C4 → RO',         description: 'Pre-RO buffer to commercial RO' },
-  { id: 'P3', label: 'P3',  route: 'C5 Output',       description: 'C5 to C6 or feedback path' },
-  { id: 'P4', label: 'P4',  route: 'C5 → C4 Recycle', description: 'Feedback booster pump' },
+  {
+    id: 'P1',
+    label: 'P1',
+    route: 'C2 → Filter',
+    description: 'Buffer tank to charcoal filter',
+  },
+  {
+    id: 'P2',
+    label: 'P2',
+    route: 'C4 → RO',
+    description: 'Pre-RO buffer to commercial RO',
+  },
+  {
+    id: 'P3',
+    label: 'P3',
+    route: 'C5 Output',
+    description: 'C5 to C6 or feedback path',
+  },
+  {
+    id: 'P4',
+    label: 'P4',
+    route: 'C5 → C4 Recycle',
+    description: 'Feedback booster pump',
+  },
 ];
 
 // Preset sequences for common calibration tasks.
 // stopCmds deliberately sends pump OFF before valve OFF to prevent water hammer.
 const QUICK_ACTIONS = [
   {
-    id:    'fill_c2',
+    id: 'fill_c2',
     label: 'Fill C2 (Buffer Tank)',
-    description: 'Opens V1 so water flows from C1 into C2. No pump needed — gravity fed.',
+    description:
+      'Opens V1 so water flows from C1 into C2. No pump needed — gravity fed.',
     affects: ['V1'],
     startCmds: [{ type: 'VALVE', id: 'V1', state: 'ON' }],
-    stopCmds:  [{ type: 'VALVE', id: 'V1', state: 'OFF' }],
+    stopCmds: [{ type: 'VALVE', id: 'V1', state: 'OFF' }],
     note: 'Ensure Container 1 has water before opening.',
   },
   {
-    id:    'fill_c3_filter',
+    id: 'fill_c3_filter',
     label: 'Fill C3 — Charcoal Filter',
-    description: 'Opens V2 then starts P1 to pump from C2 into the charcoal filter body.',
+    description:
+      'Opens V2 then starts P1 to pump from C2 into the charcoal filter body.',
     affects: ['V2', 'P1'],
-    startCmds: [{ type: 'VALVE', id: 'V2', state: 'ON' }, { type: 'PUMP', id: 'P1', state: 'ON' }],
-    stopCmds:  [{ type: 'PUMP', id: 'P1', state: 'OFF' }, { type: 'VALVE', id: 'V2', state: 'OFF' }],
+    startCmds: [
+      { type: 'VALVE', id: 'V2', state: 'ON' },
+      { type: 'PUMP', id: 'P1', state: 'ON' },
+    ],
+    stopCmds: [
+      { type: 'PUMP', id: 'P1', state: 'OFF' },
+      { type: 'VALVE', id: 'V2', state: 'OFF' },
+    ],
     note: 'C2 must have water. P1 must not run dry — stop immediately if C2 empties.',
   },
   {
-    id:    'fill_c4',
+    id: 'fill_c4',
     label: 'Fill C4 (Pre-RO Buffer)',
-    description: 'Opens V2 + V4 and starts P1 to push water through the charcoal filter into C4.',
+    description:
+      'Opens V2 + V4 and starts P1 to push water through the charcoal filter into C4.',
     affects: ['V2', 'V4', 'P1'],
     startCmds: [
       { type: 'VALVE', id: 'V2', state: 'ON' },
       { type: 'VALVE', id: 'V4', state: 'ON' },
-      { type: 'PUMP',  id: 'P1', state: 'ON' },
+      { type: 'PUMP', id: 'P1', state: 'ON' },
     ],
     stopCmds: [
-      { type: 'PUMP',  id: 'P1', state: 'OFF' },
+      { type: 'PUMP', id: 'P1', state: 'OFF' },
       { type: 'VALVE', id: 'V4', state: 'OFF' },
       { type: 'VALVE', id: 'V2', state: 'OFF' },
     ],
     note: 'C2 must have water. Stop immediately when C4 reaches target level.',
   },
   {
-    id:    'fill_c5_from_c4',
+    id: 'fill_c5_from_c4',
     label: 'Fill C5 (Quality Check Tank)',
-    description: 'Starts P2 to push water from C4 through the RO filter into C5.',
+    description:
+      'Starts P2 to push water from C4 through the RO filter into C5.',
     affects: ['P2'],
     startCmds: [{ type: 'PUMP', id: 'P2', state: 'ON' }],
-    stopCmds:  [{ type: 'PUMP', id: 'P2', state: 'OFF' }],
+    stopCmds: [{ type: 'PUMP', id: 'P2', state: 'OFF' }],
     note: 'C4 must have water. RO membranes require adequate feed pressure.',
   },
   {
-    id:    'fill_c6_direct',
+    id: 'fill_c6_direct',
     label: 'Fill C6 Direct (Bypass RO)',
-    description: 'Opens V2 + V3 and starts P1 to push water from C2 through the charcoal filter directly into C6, skipping RO.',
+    description:
+      'Opens V2 + V3 and starts P1 to push water from C2 through the charcoal filter directly into C6, skipping RO.',
     affects: ['V2', 'V3', 'P1'],
     startCmds: [
       { type: 'VALVE', id: 'V2', state: 'ON' },
       { type: 'VALVE', id: 'V3', state: 'ON' },
-      { type: 'PUMP',  id: 'P1', state: 'ON' },
+      { type: 'PUMP', id: 'P1', state: 'ON' },
     ],
     stopCmds: [
-      { type: 'PUMP',  id: 'P1', state: 'OFF' },
+      { type: 'PUMP', id: 'P1', state: 'OFF' },
       { type: 'VALVE', id: 'V3', state: 'OFF' },
       { type: 'VALVE', id: 'V2', state: 'OFF' },
     ],
     note: 'Water bypasses RO — use only for level calibration, not potability testing.',
   },
   {
-    id:    'drain_filter',
+    id: 'drain_filter',
     label: 'Drain Charcoal Filter (V5)',
-    description: 'Opens V5 to drain the filter body to waste. Used before backwash or maintenance.',
+    description:
+      'Opens V5 to drain the filter body to waste. Used before backwash or maintenance.',
     affects: ['V5'],
     startCmds: [{ type: 'VALVE', id: 'V5', state: 'ON' }],
-    stopCmds:  [{ type: 'VALVE', id: 'V5', state: 'OFF' }],
+    stopCmds: [{ type: 'VALVE', id: 'V5', state: 'OFF' }],
     note: null,
   },
 ];
@@ -150,7 +221,7 @@ export const meta = () => [
 
 export const action = async ({ request }) => {
   const formData = await request.formData();
-  const intent   = formData.get('intent');
+  const intent = formData.get('intent');
 
   const { getDb } = await import('~/lib/db.server');
   const db = await getDb();
@@ -158,8 +229,11 @@ export const action = async ({ request }) => {
   // Emergency stop — reuses the existing ESTOP command
   if (intent === 'estop') {
     await db.collection('commands').insertOne({
-      command: 'ESTOP', param: 'ON', cmdLine: 'C,ESTOP,ON',
-      status: 'pending', createdAt: new Date(),
+      command: 'ESTOP',
+      param: 'ON',
+      cmdLine: 'C,ESTOP,ON',
+      status: 'pending',
+      createdAt: new Date(),
     });
     return json({ ok: true, intent: 'estop' });
   }
@@ -170,9 +244,9 @@ export const action = async ({ request }) => {
     await db.collection('commands').insertMany(
       commands.map(({ type, id, state }) => ({
         command: type,
-        param:   `${id},${state}`,
+        param: `${id},${state}`,
         cmdLine: `C,${type},${id},${state}`,
-        status:  'pending',
+        status: 'pending',
         createdAt: new Date(),
       }))
     );
@@ -180,15 +254,15 @@ export const action = async ({ request }) => {
   }
 
   // Single actuator toggle
-  const type  = formData.get('type');   // VALVE or PUMP
-  const id    = formData.get('id');     // V1-V8 or P1-P4
+  const type = formData.get('type'); // VALVE or PUMP
+  const id = formData.get('id'); // V1-V8 or P1-P4
   const state = formData.get('state'); // ON or OFF
 
   await db.collection('commands').insertOne({
-    command:   type,
-    param:     `${id},${state}`,
-    cmdLine:   `C,${type},${id},${state}`,
-    status:    'pending',
+    command: type,
+    param: `${id},${state}`,
+    cmdLine: `C,${type},${id},${state}`,
+    status: 'pending',
     createdAt: new Date(),
   });
 
@@ -216,10 +290,21 @@ function ActuatorCard({ actuator, isOn, isValve, onToggle }) {
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
-          {isValve
-            ? <Droplets className={cn('h-4 w-4', isOn ? 'text-blue-500' : 'text-muted-foreground')} />
-            : <Zap className={cn('h-4 w-4', isOn ? 'text-green-500' : 'text-muted-foreground')} />
-          }
+          {isValve ? (
+            <Droplets
+              className={cn(
+                'h-4 w-4',
+                isOn ? 'text-blue-500' : 'text-muted-foreground'
+              )}
+            />
+          ) : (
+            <Zap
+              className={cn(
+                'h-4 w-4',
+                isOn ? 'text-green-500' : 'text-muted-foreground'
+              )}
+            />
+          )}
           <span className="font-semibold">{label}</span>
         </div>
         <Badge
@@ -227,7 +312,9 @@ function ActuatorCard({ actuator, isOn, isValve, onToggle }) {
           className={cn(
             'text-xs',
             isOn
-              ? isValve ? 'border-blue-400 text-blue-600 dark:text-blue-400' : 'border-green-400 text-green-600 dark:text-green-400'
+              ? isValve
+                ? 'border-blue-400 text-blue-600 dark:text-blue-400'
+                : 'border-green-400 text-green-600 dark:text-green-400'
               : 'text-muted-foreground'
           )}
         >
@@ -239,10 +326,20 @@ function ActuatorCard({ actuator, isOn, isValve, onToggle }) {
       <div className="flex items-center gap-1.5 text-sm font-medium">
         {route.split(' → ').map((part, i, arr) => (
           <span key={i} className="flex items-center gap-1.5">
-            <span className={cn(isOn ? (isValve ? 'text-blue-700 dark:text-blue-300' : 'text-green-700 dark:text-green-300') : 'text-foreground')}>
+            <span
+              className={cn(
+                isOn
+                  ? isValve
+                    ? 'text-blue-700 dark:text-blue-300'
+                    : 'text-green-700 dark:text-green-300'
+                  : 'text-foreground'
+              )}
+            >
               {part}
             </span>
-            {i < arr.length - 1 && <ArrowRight className="h-3 w-3 text-muted-foreground" />}
+            {i < arr.length - 1 && (
+              <ArrowRight className="h-3 w-3 text-muted-foreground" />
+            )}
           </span>
         ))}
       </div>
@@ -262,20 +359,24 @@ function ActuatorCard({ actuator, isOn, isValve, onToggle }) {
   );
 }
 
-function QuickActionCard({ action: qa, activeStates, onStart, onStop, disabled }) {
+function QuickActionCard({ action: qa, activeStates, onStart, onStop }) {
   // A quick action is "running" if any of its affected actuators are on
   const isRunning = qa.affects.some((id) => activeStates[id]);
 
   return (
-    <Card className={cn(
-      'transition-all',
-      isRunning && 'border-amber-400 dark:border-amber-600'
-    )}>
+    <Card
+      className={cn(
+        'transition-all',
+        isRunning && 'border-amber-400 dark:border-amber-600'
+      )}
+    >
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-base">{qa.label}</CardTitle>
           {isRunning && (
-            <Badge className="bg-amber-500 text-white flex-shrink-0">Running</Badge>
+            <Badge className="flex-shrink-0 bg-amber-500 text-white">
+              Running
+            </Badge>
           )}
         </div>
         <CardDescription>{qa.description}</CardDescription>
@@ -284,10 +385,15 @@ function QuickActionCard({ action: qa, activeStates, onStart, onStop, disabled }
         {/* Affects badges */}
         <div className="flex flex-wrap gap-1.5">
           {qa.affects.map((id) => (
-            <Badge key={id} variant="outline" className={cn(
-              'text-xs',
-              activeStates[id] && 'border-amber-400 text-amber-600 dark:text-amber-400'
-            )}>
+            <Badge
+              key={id}
+              variant="outline"
+              className={cn(
+                'text-xs',
+                activeStates[id] &&
+                  'border-amber-400 text-amber-600 dark:text-amber-400'
+              )}
+            >
               {id}
             </Badge>
           ))}
@@ -307,7 +413,6 @@ function QuickActionCard({ action: qa, activeStates, onStart, onStop, disabled }
             size="sm"
             variant="outline"
             className="flex-1 gap-2"
-            disabled={isRunning || disabled}
             onClick={() => onStart(qa)}
           >
             <PlayCircle className="h-4 w-4" />
@@ -317,7 +422,6 @@ function QuickActionCard({ action: qa, activeStates, onStart, onStop, disabled }
             size="sm"
             variant={isRunning ? 'destructive' : 'outline'}
             className="flex-1 gap-2"
-            disabled={!isRunning || disabled}
             onClick={() => onStop(qa)}
           >
             <StopCircle className="h-4 w-4" />
@@ -333,75 +437,49 @@ function QuickActionCard({ action: qa, activeStates, onStart, onStop, disabled }
 // Page
 // ---------------------------------------------------------------------------
 
+// Fire-and-forget POST to the Remix action. Each call is independent —
+// no request cancels another, so rapid clicks all reach the server.
+function postCommands(body) {
+  const fd = new FormData();
+  for (const [k, v] of Object.entries(body)) fd.append(k, v);
+  fetch(window.location.pathname, { method: 'POST', body: fd }).catch(() => {});
+}
+
 export default function ActuatorsPage() {
-  const fetcher        = useFetcher();
   const [states, setStates] = useState(ALL_OFF_STATE);
-  const pendingQueue   = useRef([]);
-  const debounceTimer  = useRef(null);
-
-  // Sync optimistic state when fetcher resolves
-  useEffect(() => {
-    if (!fetcher.data?.ok) return;
-    if (fetcher.data.intent === 'estop') {
-      setStates(ALL_OFF_STATE);
-    }
-  }, [fetcher.data]);
-
   const anyOn = Object.values(states).some(Boolean);
 
-  // Flush accumulated toggle commands as a single insertMany
-  const flushQueue = useCallback(() => {
-    const cmds = pendingQueue.current;
-    if (cmds.length === 0) return;
-    pendingQueue.current = [];
-
-    if (cmds.length === 1) {
-      const { type, id, state } = cmds[0];
-      fetcher.submit({ type, id, state }, { method: 'post' });
-    } else {
-      fetcher.submit(
-        { intent: 'quick_action', commands: JSON.stringify(cmds) },
-        { method: 'post' }
-      );
-    }
-  }, [fetcher]);
-
-  // Single actuator toggle — updates UI immediately, batches the network call
+  // Single actuator toggle — UI updates instantly, POST fires immediately
   const handleToggle = (type, id, currentlyOn) => {
     const newState = currentlyOn ? 'OFF' : 'ON';
     setStates((prev) => ({ ...prev, [id]: newState === 'ON' }));
-
-    pendingQueue.current.push({ type, id, state: newState });
-    clearTimeout(debounceTimer.current);
-    debounceTimer.current = setTimeout(flushQueue, 300);
+    postCommands({ type, id, state: newState });
   };
 
   // Quick action start
   const handleQuickStart = (qa) => {
-    const newStates = {};
-    qa.affects.forEach((id) => { newStates[id] = true; });
-    setStates((prev) => ({ ...prev, ...newStates }));
-    fetcher.submit(
-      { intent: 'quick_action', commands: JSON.stringify(qa.startCmds) },
-      { method: 'post' }
-    );
+    setStates((prev) => {
+      const next = { ...prev };
+      qa.affects.forEach((id) => { next[id] = true; });
+      return next;
+    });
+    postCommands({ intent: 'quick_action', commands: JSON.stringify(qa.startCmds) });
   };
 
   // Quick action stop
   const handleQuickStop = (qa) => {
-    const newStates = {};
-    qa.affects.forEach((id) => { newStates[id] = false; });
-    setStates((prev) => ({ ...prev, ...newStates }));
-    fetcher.submit(
-      { intent: 'quick_action', commands: JSON.stringify(qa.stopCmds) },
-      { method: 'post' }
-    );
+    setStates((prev) => {
+      const next = { ...prev };
+      qa.affects.forEach((id) => { next[id] = false; });
+      return next;
+    });
+    postCommands({ intent: 'quick_action', commands: JSON.stringify(qa.stopCmds) });
   };
 
   // Emergency stop
   const handleEStop = () => {
     setStates(ALL_OFF_STATE);
-    fetcher.submit({ intent: 'estop' }, { method: 'post' });
+    postCommands({ intent: 'estop' });
   };
 
   return (
@@ -413,7 +491,8 @@ export default function ActuatorsPage() {
             Actuators
           </h1>
           <p className="text-muted-foreground">
-            Manual control of valves and pumps. Use for calibration and maintenance only.
+            Manual control of valves and pumps. Use for calibration and
+            maintenance only.
           </p>
         </div>
 
@@ -421,9 +500,8 @@ export default function ActuatorsPage() {
         <Button
           variant="destructive"
           size="lg"
-          className="gap-2 shrink-0"
+          className="shrink-0 gap-2"
           onClick={handleEStop}
-          disabled={isSending}
         >
           <Power className="h-5 w-5" />
           All Off (E-Stop)
@@ -435,11 +513,19 @@ export default function ActuatorsPage() {
         <CardContent className="flex items-start gap-3 p-4">
           <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-500" />
           <div className="space-y-1 text-sm text-amber-800 dark:text-amber-200">
-            <p className="font-semibold">Manual mode — state machine is not enforced</p>
+            <p className="font-semibold">
+              Manual mode — state machine is not enforced
+            </p>
             <p>
-              Commands are sent directly to actuators, bypassing the automated pipeline logic.
-              <strong> Never run a pump without first confirming its upstream container has water</strong> — dry running damages the pump.
-              The Mega firmware adds a 100 ms delay between valve-open and pump-start automatically.
+              Commands are sent directly to actuators, bypassing the automated
+              pipeline logic.
+              <strong>
+                {' '}
+                Never run a pump without first confirming its upstream container
+                has water
+              </strong>{' '}
+              — dry running damages the pump. The Mega firmware adds a 100 ms
+              delay between valve-open and pump-start automatically.
             </p>
           </div>
         </CardContent>
@@ -448,11 +534,15 @@ export default function ActuatorsPage() {
       {/* Active actuators summary */}
       {anyOn && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 dark:border-amber-800 dark:bg-amber-950/20">
-          <span className="text-sm font-medium text-amber-700 dark:text-amber-300">Currently on:</span>
+          <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
+            Currently on:
+          </span>
           {Object.entries(states)
             .filter(([, on]) => on)
             .map(([id]) => (
-              <Badge key={id} className="bg-amber-500 text-white">{id}</Badge>
+              <Badge key={id} className="bg-amber-500 text-white">
+                {id}
+              </Badge>
             ))}
         </div>
       )}
@@ -471,7 +561,9 @@ export default function ActuatorsPage() {
             <div className="flex items-center gap-2">
               <Droplets className="h-5 w-5 text-blue-500" />
               <h2 className="text-lg font-semibold">Solenoid Valves</h2>
-              <Badge variant="outline" className="text-xs">Normally Closed</Badge>
+              <Badge variant="outline" className="text-xs">
+                Normally Closed
+              </Badge>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {VALVES.map((valve) => (
@@ -493,7 +585,10 @@ export default function ActuatorsPage() {
             <div className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-green-500" />
               <h2 className="text-lg font-semibold">Pumps</h2>
-              <Badge variant="outline" className="border-amber-300 text-amber-600 text-xs dark:text-amber-400">
+              <Badge
+                variant="outline"
+                className="border-amber-300 text-xs text-amber-600 dark:text-amber-400"
+              >
                 Dry-run risk
               </Badge>
             </div>
@@ -513,8 +608,9 @@ export default function ActuatorsPage() {
             <div className="flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm text-muted-foreground">
               <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
               <span>
-                Always open the upstream valve before starting a pump. The Mega adds a 100 ms
-                safety delay automatically, but verify water is present first.
+                Always open the upstream valve before starting a pump. The Mega
+                adds a 100 ms safety delay automatically, but verify water is
+                present first.
               </span>
             </div>
           </div>
@@ -523,9 +619,9 @@ export default function ActuatorsPage() {
         {/* Quick Actions */}
         <TabsContent value="quick" className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Predefined sequences for common calibration tasks. Each action opens the correct
-            valves and starts the right pump in the correct order. Press Stop when the
-            container reaches the desired level.
+            Predefined sequences for common calibration tasks. Each action opens
+            the correct valves and starts the right pump in the correct order.
+            Press Stop when the container reaches the desired level.
           </p>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {QUICK_ACTIONS.map((qa) => (
@@ -535,7 +631,6 @@ export default function ActuatorsPage() {
                 activeStates={states}
                 onStart={handleQuickStart}
                 onStop={handleQuickStop}
-                disabled={isSending}
               />
             ))}
           </div>

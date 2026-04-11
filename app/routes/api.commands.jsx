@@ -1,45 +1,67 @@
 // Resource route: /api/commands
-// GET  — ESP32 polls for pending control commands
-// POST — React dashboard queues a control command
+//
+// POST — React dashboard queues a control command.
+//        Publishes directly to MQTT topic rainwater/commands so the ESP32
+//        receives it instantly (no polling delay).
+//
+// GET  — Legacy fallback: ESP32 polls this if MQTT is unavailable.
+//        Returns any commands still marked 'pending' in MongoDB.
 
 import { json } from '@remix-run/node';
 import { getDb } from '~/lib/db.server';
+import { mqttPublish } from '~/lib/hivemq.server';
 
-// ESP32 polls this
-export async function loader() {
-    const db      = await getDb();
-    const pending = await db.collection('commands')
-        .find({ status: 'pending' })
-        .sort({ createdAt: 1 })
-        .toArray();
+// ---------------------------------------------------------------------------
+// POST — called by the React actuators/calibration pages
+// Body (FormData): { type, id, state }  OR  { intent, commands (JSON) }  OR  { intent: 'estop' }
+// ---------------------------------------------------------------------------
+export async function action({ request }) {
+  const formData = await request.formData();
+  const intent   = formData.get('intent');
 
-    if (pending.length > 0) {
-        const ids = pending.map(p => p._id);
-        await db.collection('commands').updateMany(
-            { _id: { $in: ids } },
-            { $set: { status: 'sent', sentAt: new Date() } }
-        );
-    }
+  // Build the list of cmdLine strings to publish
+  let cmdLines = [];
 
-    return json({ commands: pending.map(p => p.cmdLine) });
+  if (intent === 'estop') {
+    cmdLines = ['C,ESTOP,ON'];
+  } else if (intent === 'quick_action') {
+    const commands = JSON.parse(formData.get('commands'));
+    cmdLines = commands.map(({ type, id, state }) => `C,${type},${id},${state}`);
+  } else {
+    // Single actuator toggle
+    const type  = formData.get('type');
+    const id    = formData.get('id');
+    const state = formData.get('state');
+    cmdLines = [`C,${type},${id},${state}`];
+  }
+
+  // Publish each command to MQTT (fire all in parallel — order preserved by ESP32 queue)
+  await Promise.all(
+    cmdLines.map((cmd) => mqttPublish('rainwater/commands', cmd))
+  );
+
+  return json({ ok: true, published: cmdLines });
 }
 
-// React app queues a command
-// Body: { command: "FILTER", param: "CHARCOAL" }
-export async function action({ request }) {
-    if (request.method !== 'POST') {
-        return json({ error: 'Method not allowed' }, { status: 405 });
-    }
+// ---------------------------------------------------------------------------
+// GET — legacy HTTP polling fallback for ESP32
+// Returns commands inserted directly into MongoDB (e.g. from calibration page
+// which still uses the old insertOne path, or manual DB entries for debugging).
+// ---------------------------------------------------------------------------
+export async function loader() {
+  const db      = await getDb();
+  const pending = await db.collection('commands')
+    .find({ status: 'pending' })
+    .sort({ createdAt: 1 })
+    .toArray();
 
-    const { command, param } = await request.json();
-    const cmdLine = param ? `C,${command},${param}` : `C,${command}`;
+  if (pending.length > 0) {
+    const ids = pending.map((p) => p._id);
+    await db.collection('commands').updateMany(
+      { _id: { $in: ids } },
+      { $set: { status: 'sent', sentAt: new Date() } }
+    );
+  }
 
-    const db = await getDb();
-    await db.collection('commands').insertOne({
-        command, param, cmdLine,
-        status:    'pending',
-        createdAt: new Date(),
-    });
-
-    return json({ ok: true, cmdLine });
+  return json({ commands: pending.map((p) => p.cmdLine) });
 }
