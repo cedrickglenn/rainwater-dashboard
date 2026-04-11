@@ -20,9 +20,12 @@ import '~/styles/tailwind.css';
 
 // Layout
 import { DashboardLayout } from '~/components/layout';
+import { Toaster } from '~/components/ui/toaster';
+import { ActivityStreamProvider } from '~/lib/activity-stream';
 
 // Data
 import { alerts } from '~/data/mock-data';
+import { getWeather } from '~/lib/weather.server';
 
 /**
  * Meta function for global SEO settings
@@ -61,15 +64,15 @@ export const links = () => [
 export const loader = async ({ request }) => {
   const { getUser } = await import('~/lib/auth.server');
   const unreadAlerts = alerts.filter((alert) => !alert.isRead).length;
-  const user = await getUser(request);
-  return json({ alertCount: unreadAlerts, user });
+  const [user, weather] = await Promise.all([getUser(request), getWeather()]);
+  return json({ alertCount: unreadAlerts, user, weather });
 };
 
 /**
  * Root App Component
  */
 export default function App() {
-  const { alertCount, user } = useLoaderData();
+  const { alertCount, user, weather } = useLoaderData();
   const location = useLocation();
   const isStandalone = location.pathname === '/login';
 
@@ -95,7 +98,10 @@ export default function App() {
         />
       </head>
       <body className="min-h-screen bg-background font-sans antialiased">
-        {isStandalone ? <Outlet /> : <DashboardLayout alertCount={alertCount} user={user} />}
+        <ActivityStreamProvider>
+          {isStandalone ? <Outlet /> : <DashboardLayout alertCount={alertCount} user={user} weather={weather} />}
+        </ActivityStreamProvider>
+        <Toaster />
         <ScrollRestoration />
         <Scripts />
       </body>

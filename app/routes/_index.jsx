@@ -11,21 +11,22 @@
 
 import { json } from '@remix-run/node';
 import { useLoaderData } from '@remix-run/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Droplets, Activity, Zap, Calendar } from 'lucide-react';
 
 // Components
 import { SensorCard } from '~/components/dashboard/sensor-card';
 import { WaterQualityStatus } from '~/components/dashboard/water-quality-status';
-import { SystemControls } from '~/components/dashboard/system-controls';
 import { TankLevel } from '~/components/dashboard/tank-level';
 import { SensorAreaChart } from '~/components/dashboard/chart-wrapper';
 import { ActivityLog } from '~/components/dashboard/activity-log';
-import { toast } from '~/components/ui/toaster';
+import { WeatherWidget } from '~/components/dashboard/weather-widget';
+import { useActivityStream } from '~/lib/activity-stream';
 import { StatCard } from '~/components/dashboard/stat-card';
 
 // Data and utilities
 import { getDb } from '~/lib/db.server';
+import { getWeather } from '~/lib/weather.server';
 import { calculateWaterQuality } from '~/lib/water-quality';
 import { formatRelativeTime } from '~/lib/date-utils';
 
@@ -46,7 +47,7 @@ export const loader = async () => {
   const db    = await getDb();
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  const [latestDoc, historyDocs, logDocs, actuatorDocs, alertCount, todayFlowDocs] =
+  const [latestDoc, historyDocs, logDocs, actuatorDocs, alertCount, todayFlowDocs, weather] =
     await Promise.all([
       db.collection('sensor_readings').findOne({}, { sort: { timestamp: -1 } }),
       db.collection('sensor_readings')
@@ -66,6 +67,7 @@ export const loader = async () => {
       db.collection('sensor_readings')
         .find({ timestamp: { $gte: since } }, { projection: { flow: 1, _id: 0 } })
         .toArray(),
+      getWeather(),
     ]);
 
   // C6 = clean storage (final output) — primary display container.
@@ -126,7 +128,7 @@ export const loader = async () => {
       source:    e.source,
       level:     e.level,
       message:   e.message,
-      type:      e.type     ?? 'info',
+      type:      e.type ?? (e.level === 'WARN' ? 'warning' : e.level === 'ERR' ? 'error' : e.level === 'OK' ? 'success' : 'info'),
       category:  e.category ?? e.source,
       timestamp: e.timestamp,
     })),
@@ -137,6 +139,7 @@ export const loader = async () => {
       systemUptime:         null,  // requires uptime telemetry from firmware
       alertsCount:          alertCount,
     },
+    weather,
   });
 };
 
@@ -152,34 +155,21 @@ export const loader = async () => {
  * 6. System controls & activity log
  */
 export default function DashboardPage() {
-  const { sensors, system, historical, logs: initialLogs, stats, waterQuality } =
+  const { sensors, system, historical, logs: initialLogs, stats, waterQuality, weather } =
     useLoaderData();
 
-  const [logs, setLogs]             = useState(initialLogs);
-  const [liveStatus, setLiveStatus] = useState('connecting'); // connecting | live | disconnected
+  const [logs, setLogs] = useState(initialLogs);
+  const { liveStatus, subscribe } = useActivityStream();
 
   useEffect(() => {
-    const es = new EventSource('/api/activity/stream');
-
-    es.addEventListener('ping', () => setLiveStatus('live'));
-
-    es.addEventListener('log', (e) => {
-      const entry = JSON.parse(e.data);
-      setLiveStatus('live');
+    return subscribe((entry) => {
       setLogs((prev) => {
         if (prev.some((l) => l.id === entry.id)) return prev;
         const next = [...prev, entry];
         return next.length > 50 ? next.slice(next.length - 50) : next;
       });
-      // Toast the new entry — type maps directly to toast style
-      const prefix = entry.source ? `[${entry.source}] ` : '';
-      toast(`${prefix}${entry.message}`, { type: entry.type });
     });
-
-    es.onerror = () => setLiveStatus('disconnected');
-
-    return () => es.close();
-  }, []);
+  }, [subscribe]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -335,14 +325,14 @@ export default function DashboardPage() {
         />
       </section>
 
-      {/* 
-        CONTROLS & ACTIVITY SECTION
-        Stacked on mobile, side-by-side on desktop
+      {/*
+        WEATHER + ACTIVITY SECTION
+        Stacked on mobile, 2-column on desktop
       */}
       <div className="grid gap-5 lg:grid-cols-2">
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold">System Controls</h2>
-          <SystemControls initialStatus={system} />
+        <section className="flex flex-col space-y-3">
+          <h2 className="text-lg font-semibold">Weather</h2>
+          <WeatherWidget weather={weather} className="flex-1" />
         </section>
 
         <section className="flex flex-col space-y-3">

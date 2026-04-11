@@ -5,7 +5,8 @@
 
 import { json } from '@remix-run/node';
 import { useLoaderData, useNavigate } from '@remix-run/react';
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useActivityStream } from '~/lib/activity-stream';
 import { cn } from '~/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 import { Badge } from '~/components/ui/badge';
@@ -257,8 +258,35 @@ function DailySummary({ data }) {
 const LOGS_PER_PAGE = 10;
 
 export default function HistoryPage() {
-  const { logs, sources, counts, weeklyStats, range } = useLoaderData();
+  const { logs: initialLogs, sources: initialSources, counts: initialCounts, weeklyStats, range } = useLoaderData();
   const navigate = useNavigate();
+  const { liveStatus, subscribe } = useActivityStream();
+
+  const [logs,    setLogs]    = useState(initialLogs);
+  const [sources, setSources] = useState(initialSources);
+  const [counts,  setCounts]  = useState(initialCounts);
+
+  // Sync when loader re-fetches (date range change)
+  useEffect(() => { setLogs(initialLogs);    }, [initialLogs]);
+  useEffect(() => { setSources(initialSources); }, [initialSources]);
+  useEffect(() => { setCounts(initialCounts);  }, [initialCounts]);
+
+  // Subscribe to live entries — prepend to list and update counts
+  useEffect(() => {
+    return subscribe((entry) => {
+      setLogs((prev) => {
+        if (prev.some((l) => l.id === entry.id)) return prev;
+        return [entry, ...prev].slice(0, 500);
+      });
+      setSources((prev) =>
+        prev.includes(entry.source) ? prev : [...prev, entry.source].sort()
+      );
+      setCounts((prev) => ({
+        ...prev,
+        [entry.type]: (prev[entry.type] ?? 0) + 1,
+      }));
+    });
+  }, [subscribe]);
 
   // URL-driven date range (re-fetches from server)
   const handleRangeChange = useCallback(
@@ -361,6 +389,12 @@ export default function HistoryPage() {
               <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-[10px]">
                 {logs.length}
               </Badge>
+            )}
+            {liveStatus === 'live' && (
+              <span className="relative ml-1 flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+              </span>
             )}
           </TabsTrigger>
           <TabsTrigger value="daily" className="gap-2">

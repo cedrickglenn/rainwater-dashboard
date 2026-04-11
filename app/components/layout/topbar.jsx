@@ -16,7 +16,25 @@ import { cn } from '~/lib/utils';
 import { Button } from '~/components/ui/button';
 import { Badge } from '~/components/ui/badge';
 import { Tooltip, TooltipTrigger, TooltipContent } from '~/components/ui/tooltip';
-import { Menu, Bell, Sun, Moon, Search, User, RefreshCw, LogIn, LogOut, ShieldCheck } from 'lucide-react';
+import {
+  Menu, Bell, Sun, Moon, Search, User, RefreshCw, LogIn, LogOut, ShieldCheck,
+  Cloud, CloudSun, CloudRain, CloudDrizzle, CloudLightning, CloudFog, Thermometer,
+} from 'lucide-react';
+
+// Minimal icon map for topbar weather indicator
+const WEATHER_ICONS = {
+  Sun,
+  CloudSun,
+  Cloud,
+  CloudRain,
+  CloudDrizzle,
+  CloudLightning,
+  CloudFog,
+};
+function TopbarWeatherIcon({ name, className }) {
+  const Icon = WEATHER_ICONS[name] ?? Cloud;
+  return <Icon className={className} />;
+}
 
 /**
  * Topbar Component
@@ -33,6 +51,7 @@ export function Topbar({
   onThemeToggle,
   alertCount = 0,
   user = null,
+  weather = null,
   className,
 }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -114,6 +133,20 @@ export function Topbar({
 
       {/* Right section - generous spacing between buttons */}
       <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* Weather indicator - desktop only */}
+        {weather?.current && (
+          <div className="hidden items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm lg:flex">
+            <TopbarWeatherIcon
+              name={weather.current.icon}
+              className="h-4 w-4 text-amber-400 dark:text-amber-300"
+            />
+            <span className="font-medium">{weather.current.temp}°C</span>
+            <span className="hidden text-xs text-muted-foreground xl:block">
+              {weather.current.label}
+            </span>
+          </div>
+        )}
+
         {/* Refresh button - hidden on mobile */}
         <Tooltip>
           <TooltipTrigger asChild>

@@ -89,7 +89,8 @@ export function Toaster() {
   const [items, setItems] = useState([]);
 
   useEffect(() => {
-    const handler = (entry) => setItems((prev) => [...prev, entry]);
+    // Prepend so newest toast appears at the top of the stack
+    const handler = (entry) => setItems((prev) => [entry, ...prev]);
     listeners.add(handler);
     return () => listeners.delete(handler);
   }, []);
@@ -102,8 +103,7 @@ export function Toaster() {
   if (items.length === 0) return null;
 
   return (
-    // Sits above mobile bottom-nav (bottom-20) on small screens, normal bottom-4 on desktop
-    <div className="fixed bottom-20 right-4 z-[100] flex flex-col gap-2 lg:bottom-4">
+    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2">
       {items.map((item) => (
         <ToastItem key={item.id} item={item} onDismiss={dismiss} />
       ))}

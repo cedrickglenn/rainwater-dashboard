@@ -11,24 +11,44 @@ import { getDb } from '~/lib/db.server';
 
 // ---------------------------------------------------------------------------
 // Frame parser
-// Format: L,<SOURCE>,<LEVEL>,<MESSAGE>
-//   SOURCE : MEGA | ESP32 | SYSTEM
-//   LEVEL  : INFO | WARN | ERR | OK
-//   MESSAGE: free-form text (may contain commas)
+// Two frame formats are in use:
+//
+//   Format A (Mega):  L,<SOURCE>,<LEVEL>,<MESSAGE>
+//     SOURCE : MEGA | ESP32 | SYSTEM
+//     LEVEL  : INFO | WARN | ERR | OK
+//
+//   Format B (ESP32): L,<LEVEL>,<CATEGORY>,<MESSAGE>
+//     LEVEL  : INFO | WARN | ERR | OK
+//     CATEGORY: NETWORK | SENSOR | SYSTEM | …
+//
+// Detected by checking whether parts[1] is a known level token.
 // ---------------------------------------------------------------------------
+const LEVEL_TOKENS = new Set(['INFO', 'WARN', 'ERR', 'OK']);
+
 function parseLogFrame(raw) {
   const s = raw.trim();
   if (!s.startsWith('L,')) return null;
 
-  // Split only on the first 3 commas so the message can contain commas
   const parts = s.split(',');
   if (parts.length < 4) return null;
 
-  const source  = parts[1];
-  const level   = parts[2];
-  const message = parts.slice(3).join(','); // rejoin trailing parts
-
   const TYPE_MAP = { INFO: 'info', WARN: 'warning', ERR: 'error', OK: 'success' };
+
+  let source, level, category, message;
+
+  if (LEVEL_TOKENS.has(parts[1])) {
+    // Format B: L,<LEVEL>,<CATEGORY>,<MESSAGE>
+    level    = parts[1];
+    category = parts[2];
+    message  = parts.slice(3).join(',');
+    source   = category;
+  } else {
+    // Format A: L,<SOURCE>,<LEVEL>,<MESSAGE>
+    source   = parts[1];
+    level    = parts[2];
+    message  = parts.slice(3).join(',');
+    category = source;
+  }
 
   return {
     source,
@@ -36,7 +56,7 @@ function parseLogFrame(raw) {
     message,
     raw:       s,
     type:      TYPE_MAP[level] ?? 'info',
-    category:  source,
+    category,
     timestamp: new Date(),
   };
 }
@@ -90,7 +110,7 @@ export async function loader({ request }) {
       source:    e.source,
       level:     e.level,
       message:   e.message,
-      type:      e.type      ?? 'info',
+      type:      e.type ?? (e.level === 'WARN' ? 'warning' : e.level === 'ERR' ? 'error' : e.level === 'OK' ? 'success' : 'info'),
       category:  e.category  ?? e.source,
       timestamp: e.timestamp,
     })),

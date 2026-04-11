@@ -89,7 +89,7 @@ export async function loader({ request }) {
                 source:    entry.source,
                 level:     entry.level,
                 message:   entry.message,
-                type:      entry.type     ?? 'info',
+                type:      entry.type ?? (entry.level === 'WARN' ? 'warning' : entry.level === 'ERR' ? 'error' : entry.level === 'OK' ? 'success' : 'info'),
                 category:  entry.category ?? entry.source,
                 timestamp: entry.timestamp,
               },
