@@ -11,10 +11,12 @@
  */
 
 import { useState } from 'react';
+import { Form, Link } from '@remix-run/react';
 import { cn } from '~/lib/utils';
 import { Button } from '~/components/ui/button';
 import { Badge } from '~/components/ui/badge';
-import { Menu, Bell, Sun, Moon, Search, User, RefreshCw } from 'lucide-react';
+import { Tooltip, TooltipTrigger, TooltipContent } from '~/components/ui/tooltip';
+import { Menu, Bell, Sun, Moon, Search, User, RefreshCw, LogIn, LogOut, ShieldCheck } from 'lucide-react';
 
 /**
  * Topbar Component
@@ -30,6 +32,7 @@ export function Topbar({
   theme = 'light',
   onThemeToggle,
   alertCount = 0,
+  user = null,
   className,
 }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -71,18 +74,23 @@ export function Topbar({
           sidebar drawer might be useful for additional context.
           Keeping the hamburger for sm-lg breakpoint as a secondary option.
         */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onMenuClick}
-          className={cn(
-            touchButtonClasses,
-            'hidden rounded-xl sm:flex lg:hidden'
-          )}
-          aria-label="Open navigation menu"
-        >
-          <Menu className="h-6 w-6" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onMenuClick}
+              className={cn(
+                touchButtonClasses,
+                'hidden rounded-xl sm:flex lg:hidden'
+              )}
+              aria-label="Open navigation menu"
+            >
+              <Menu className="h-6 w-6" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Open navigation menu</TooltipContent>
+        </Tooltip>
 
         {/* App title on mobile - larger text (16px) for readability */}
         <span className="max-w-[160px] truncate text-base font-semibold sm:hidden">
@@ -107,62 +115,108 @@ export function Topbar({
       {/* Right section - generous spacing between buttons */}
       <div className="flex items-center gap-1.5 sm:gap-2">
         {/* Refresh button - hidden on mobile */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          className={cn(touchButtonClasses, 'hidden rounded-xl sm:flex')}
-          aria-label="Refresh data"
-        >
-          <RefreshCw
-            className={cn(
-              'h-5 w-5 sm:h-6 sm:w-6',
-              isRefreshing && 'animate-spin'
-            )}
-          />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className={cn(touchButtonClasses, 'hidden rounded-xl sm:flex')}
+              aria-label="Refresh data"
+            >
+              <RefreshCw
+                className={cn(
+                  'h-5 w-5 sm:h-6 sm:w-6',
+                  isRefreshing && 'animate-spin'
+                )}
+              />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Refresh data</TooltipContent>
+        </Tooltip>
 
         {/* Theme toggle - 48px touch target, 24px icon */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onThemeToggle}
-          className={cn(touchButtonClasses, 'rounded-xl')}
-          aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-        >
-          {isDark ? <Sun className="h-6 w-6" /> : <Moon className="h-6 w-6" />}
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onThemeToggle}
+              className={cn(touchButtonClasses, 'rounded-xl')}
+              aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {isDark ? <Sun className="h-6 w-6" /> : <Moon className="h-6 w-6" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{isDark ? 'Switch to light mode' : 'Switch to dark mode'}</TooltipContent>
+        </Tooltip>
 
         {/* Notifications - 48px touch target, 24px icon */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(touchButtonClasses, 'relative rounded-xl')}
-          aria-label={`Notifications${alertCount > 0 ? `, ${alertCount} unread` : ''}`}
-        >
-          <Bell className="h-6 w-6" />
-          {alertCount > 0 && (
-            <Badge
-              variant="destructive"
-              className="absolute -right-0.5 top-1 flex h-5 w-5 items-center justify-center rounded-full p-0 text-[10px]"
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(touchButtonClasses, 'relative rounded-xl')}
+              aria-label={`Notifications${alertCount > 0 ? `, ${alertCount} unread` : ''}`}
             >
-              {alertCount > 9 ? '9+' : alertCount}
-            </Badge>
-          )}
-        </Button>
+              <Bell className="h-6 w-6" />
+              {alertCount > 0 && (
+                <Badge
+                  variant="destructive"
+                  className="absolute -right-0.5 top-1 flex h-5 w-5 items-center justify-center rounded-full p-0 text-[10px]"
+                >
+                  {alertCount > 9 ? '9+' : alertCount}
+                </Badge>
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {alertCount > 0 ? `${alertCount} unread notification${alertCount > 1 ? 's' : ''}` : 'Notifications'}
+          </TooltipContent>
+        </Tooltip>
 
-        {/* User menu - 48px touch target */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(touchButtonClasses, 'rounded-full')}
-          aria-label="User menu"
-        >
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground">
-            <User className="h-5 w-5" />
+        {/* User menu */}
+        {user ? (
+          <div className="flex items-center gap-1.5">
+            <div className={cn(
+              'hidden items-center gap-1.5 rounded-xl border px-3 py-1.5 sm:flex',
+              'text-xs font-medium text-muted-foreground'
+            )}>
+              <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+              {user.username}
+            </div>
+            <Form method="post" action="/logout">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="submit"
+                    variant="ghost"
+                    size="icon"
+                    className={cn(touchButtonClasses, 'rounded-xl')}
+                    aria-label="Sign out"
+                  >
+                    <LogOut className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Sign out</TooltipContent>
+              </Tooltip>
+            </Form>
           </div>
-        </Button>
+        ) : (
+          <Link to="/login">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 rounded-xl"
+              aria-label="Sign in"
+            >
+              <LogIn className="h-4 w-4" />
+              <span>Login</span>
+            </Button>
+          </Link>
+        )}
       </div>
     </header>
   );

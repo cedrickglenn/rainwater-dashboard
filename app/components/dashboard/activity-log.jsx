@@ -106,12 +106,12 @@ function ActivityLogItem({ log }) {
 /**
  * ActivityLog Component
  * @param {Object} props - Component props
- * @param {Array} props.logs - Array of log entries
- * @param {number} props.maxHeight - Maximum height for scroll area
+ * @param {Array}  props.logs       - Array of log entries
+ * @param {string} props.liveStatus - 'connecting' | 'live' | 'disconnected'
  * @param {boolean} props.showTitle - Whether to show the title
- * @param {string} props.className - Additional CSS classes
+ * @param {string}  props.className - Additional CSS classes
  */
-export function ActivityLog({ logs = [], showTitle = true, className }) {
+export function ActivityLog({ logs = [], liveStatus, showTitle = true, className }) {
   return (
     <Card className={cn('grow overflow-hidden', className)}>
       {showTitle && (
@@ -119,6 +119,20 @@ export function ActivityLog({ logs = [], showTitle = true, className }) {
           <CardTitle className="flex items-center gap-2 text-lg">
             <Activity className="h-5 w-5 text-primary" />
             Recent Activity
+            {liveStatus === 'live' && (
+              <span className="ml-auto flex items-center gap-1.5 text-xs font-normal text-green-600 dark:text-green-400">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+                </span>
+                LIVE
+              </span>
+            )}
+            {liveStatus === 'disconnected' && (
+              <span className="ml-auto text-xs font-normal text-muted-foreground">
+                Reconnecting…
+              </span>
+            )}
           </CardTitle>
         </CardHeader>
       )}
@@ -130,7 +144,10 @@ export function ActivityLog({ logs = [], showTitle = true, className }) {
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
                 <Activity className="mb-2 h-8 w-8 opacity-50" />
-                <p className="text-sm">No recent activity</p>
+                <p className="text-sm">No activity yet</p>
+                <p className="mt-1 text-xs opacity-70">
+                  Waiting for firmware data…
+                </p>
               </div>
             )}
           </div>

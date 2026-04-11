@@ -11,6 +11,7 @@ import {
   Scripts,
   ScrollRestoration,
   useLoaderData,
+  useLocation,
 } from '@remix-run/react';
 import { json } from '@remix-run/node';
 
@@ -57,20 +58,20 @@ export const links = () => [
 /**
  * Loader for root data
  */
-export const loader = async () => {
-  // Count unread alerts for the topbar
+export const loader = async ({ request }) => {
+  const { getUser } = await import('~/lib/auth.server');
   const unreadAlerts = alerts.filter((alert) => !alert.isRead).length;
-
-  return json({
-    alertCount: unreadAlerts,
-  });
+  const user = await getUser(request);
+  return json({ alertCount: unreadAlerts, user });
 };
 
 /**
  * Root App Component
  */
 export default function App() {
-  const { alertCount } = useLoaderData();
+  const { alertCount, user } = useLoaderData();
+  const location = useLocation();
+  const isStandalone = location.pathname === '/login';
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -94,7 +95,7 @@ export default function App() {
         />
       </head>
       <body className="min-h-screen bg-background font-sans antialiased">
-        <DashboardLayout alertCount={alertCount} />
+        {isStandalone ? <Outlet /> : <DashboardLayout alertCount={alertCount} user={user} />}
         <ScrollRestoration />
         <Scripts />
       </body>

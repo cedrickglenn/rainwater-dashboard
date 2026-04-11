@@ -9,7 +9,8 @@
  */
 
 import { json } from '@remix-run/node';
-import { useState } from 'react';
+import { useLoaderData, useRevalidator } from '@remix-run/react';
+import { useState, useEffect } from 'react';
 import { cn } from '~/lib/utils';
 import {
   Card,
@@ -216,65 +217,90 @@ export const meta = () => [
 ];
 
 // ---------------------------------------------------------------------------
+// Remix loader — reads persisted actuator state from MongoDB
+// ---------------------------------------------------------------------------
+
+export const loader = async ({ request }) => {
+  const { requireOperator } = await import('~/lib/auth.server');
+  await requireOperator(request);
+
+  const { getDb } = await import('~/lib/db.server');
+  const db  = await getDb();
+  const docs = await db.collection('actuator_states').find({}).toArray();
+
+  // { V1: { on: true, confirmed: false }, ... }
+  const persisted = Object.fromEntries(
+    docs.map((d) => [d.actuatorId, { on: d.state === 'ON', confirmed: d.confirmed ?? true }])
+  );
+
+  return json({ persisted });
+};
+
+// ---------------------------------------------------------------------------
 // Remix action
 // ---------------------------------------------------------------------------
 
-export const action = async ({ request }) => {
-  const formData = await request.formData();
-  const intent = formData.get('intent');
-
+// Persist a list of { type, id, state } commands to MongoDB
+async function persistStates(commands) {
   const { getDb } = await import('~/lib/db.server');
   const db = await getDb();
+  await Promise.all(
+    commands.map(({ type, id, state }) =>
+      db.collection('actuator_states').updateOne(
+        { actuatorId: id },
+        { $set: { actuatorId: id, type, state, confirmed: false, updatedAt: new Date() } },
+        { upsert: true }
+      )
+    )
+  );
+}
 
-  // Emergency stop — reuses the existing ESTOP command
+export const action = async ({ request }) => {
+  const { requireOperator } = await import('~/lib/auth.server');
+  await requireOperator(request);
+
+  const formData = await request.formData();
+  const intent   = formData.get('intent');
+
+  const { mqttPublish } = await import('~/lib/hivemq.server');
+
+  let cmdLines  = [];
+  let toPersist = [];
+
   if (intent === 'estop') {
-    await db.collection('commands').insertOne({
-      command: 'ESTOP',
-      param: 'ON',
-      cmdLine: 'C,ESTOP,ON',
-      status: 'pending',
-      createdAt: new Date(),
-    });
-    return json({ ok: true, intent: 'estop' });
-  }
-
-  // Quick action — batch of commands
-  if (intent === 'quick_action') {
+    cmdLines  = ['C,ESTOP,ON'];
+    // Mark every actuator OFF
+    toPersist = [
+      ...VALVES.map((v) => ({ type: 'VALVE', id: v.id, state: 'OFF' })),
+      ...PUMPS.map((p)  => ({ type: 'PUMP',  id: p.id, state: 'OFF' })),
+    ];
+  } else if (intent === 'quick_action') {
     const commands = JSON.parse(formData.get('commands'));
-    await db.collection('commands').insertMany(
-      commands.map(({ type, id, state }) => ({
-        command: type,
-        param: `${id},${state}`,
-        cmdLine: `C,${type},${id},${state}`,
-        status: 'pending',
-        createdAt: new Date(),
-      }))
-    );
-    return json({ ok: true, intent: 'quick_action' });
+    cmdLines  = commands.map(({ type, id, state }) => `C,${type},${id},${state}`);
+    toPersist = commands;
+  } else {
+    const type  = formData.get('type');
+    const id    = formData.get('id');
+    const state = formData.get('state');
+    cmdLines  = [`C,${type},${id},${state}`];
+    toPersist = [{ type, id, state }];
   }
 
-  // Single actuator toggle
-  const type = formData.get('type'); // VALVE or PUMP
-  const id = formData.get('id'); // V1-V8 or P1-P4
-  const state = formData.get('state'); // ON or OFF
+  await Promise.all([
+    mqttPublish('rainwater/commands', cmdLines),
+    persistStates(toPersist),
+  ]);
 
-  await db.collection('commands').insertOne({
-    command: type,
-    param: `${id},${state}`,
-    cmdLine: `C,${type},${id},${state}`,
-    status: 'pending',
-    createdAt: new Date(),
-  });
-
-  return json({ ok: true, actuatorId: id, state });
+  return json({ ok: true, published: cmdLines });
 };
 
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function ActuatorCard({ actuator, isOn, isValve, onToggle }) {
+function ActuatorCard({ actuator, isOn, isValve, isConfirmed, onToggle }) {
   const { id, label, route, description } = actuator;
+  const isPending = !isConfirmed;
 
   return (
     <div
@@ -284,7 +310,8 @@ function ActuatorCard({ actuator, isOn, isValve, onToggle }) {
           ? isValve
             ? 'border-blue-400 bg-blue-50 dark:border-blue-700 dark:bg-blue-950/30'
             : 'border-green-400 bg-green-50 dark:border-green-700 dark:bg-green-950/30'
-          : 'border-border bg-muted/20'
+          : 'border-border bg-muted/20',
+        isPending && 'opacity-70'
       )}
     >
       {/* Header */}
@@ -294,14 +321,16 @@ function ActuatorCard({ actuator, isOn, isValve, onToggle }) {
             <Droplets
               className={cn(
                 'h-4 w-4',
-                isOn ? 'text-blue-500' : 'text-muted-foreground'
+                isOn ? 'text-blue-500' : 'text-muted-foreground',
+                isPending && 'animate-pulse'
               )}
             />
           ) : (
             <Zap
               className={cn(
                 'h-4 w-4',
-                isOn ? 'text-green-500' : 'text-muted-foreground'
+                isOn ? 'text-green-500' : 'text-muted-foreground',
+                isPending && 'animate-pulse'
               )}
             />
           )}
@@ -311,14 +340,16 @@ function ActuatorCard({ actuator, isOn, isValve, onToggle }) {
           variant="outline"
           className={cn(
             'text-xs',
-            isOn
-              ? isValve
-                ? 'border-blue-400 text-blue-600 dark:text-blue-400'
-                : 'border-green-400 text-green-600 dark:text-green-400'
-              : 'text-muted-foreground'
+            isPending
+              ? 'border-amber-400 text-amber-600 dark:text-amber-400'
+              : isOn
+                ? isValve
+                  ? 'border-blue-400 text-blue-600 dark:text-blue-400'
+                  : 'border-green-400 text-green-600 dark:text-green-400'
+                : 'text-muted-foreground'
           )}
         >
-          {isOn ? 'OPEN' : isValve ? 'CLOSED' : 'OFF'}
+          {isPending ? 'PENDING' : isOn ? (isValve ? 'OPEN' : 'ON') : (isValve ? 'CLOSED' : 'OFF')}
         </Badge>
       </div>
 
@@ -446,13 +477,57 @@ function postCommands(body) {
 }
 
 export default function ActuatorsPage() {
-  const [states, setStates] = useState(ALL_OFF_STATE);
+  const { persisted }  = useLoaderData();
+  const revalidator    = useRevalidator();
+
+  // on/off state — seeded from MongoDB, updated optimistically on click
+  const [states, setStates] = useState(() =>
+    Object.fromEntries(
+      Object.entries({ ...ALL_OFF_STATE, ...Object.fromEntries(
+        Object.entries(persisted).map(([id, v]) => [id, v.on])
+      )})
+    )
+  );
+
+  // confirmed map — true = ACKed by Mega, false = pending
+  const [confirmed, setConfirmed] = useState(() =>
+    Object.fromEntries(
+      [...VALVES, ...PUMPS].map((a) => [
+        a.id,
+        persisted[a.id]?.confirmed ?? true,
+      ])
+    )
+  );
+
+  // Sync confirmed status whenever loader data refreshes
+  useEffect(() => {
+    setConfirmed((prev) => {
+      const next = { ...prev };
+      for (const [id, v] of Object.entries(persisted)) {
+        next[id] = v.confirmed;
+      }
+      return next;
+    });
+  }, [persisted]);
+
+  // Poll every 2s while any actuator is unconfirmed
+  const anyPending = Object.values(confirmed).some((c) => !c);
+  useEffect(() => {
+    if (!anyPending) return;
+    const id = setInterval(() => revalidator.revalidate(), 2000);
+    return () => clearInterval(id);
+  }, [anyPending, revalidator]);
+
   const anyOn = Object.values(states).some(Boolean);
+
+  const markPending = (ids) =>
+    setConfirmed((prev) => ({ ...prev, ...Object.fromEntries(ids.map((id) => [id, false])) }));
 
   // Single actuator toggle — UI updates instantly, POST fires immediately
   const handleToggle = (type, id, currentlyOn) => {
     const newState = currentlyOn ? 'OFF' : 'ON';
     setStates((prev) => ({ ...prev, [id]: newState === 'ON' }));
+    markPending([id]);
     postCommands({ type, id, state: newState });
   };
 
@@ -463,6 +538,7 @@ export default function ActuatorsPage() {
       qa.affects.forEach((id) => { next[id] = true; });
       return next;
     });
+    markPending(qa.affects);
     postCommands({ intent: 'quick_action', commands: JSON.stringify(qa.startCmds) });
   };
 
@@ -473,12 +549,14 @@ export default function ActuatorsPage() {
       qa.affects.forEach((id) => { next[id] = false; });
       return next;
     });
+    markPending(qa.affects);
     postCommands({ intent: 'quick_action', commands: JSON.stringify(qa.stopCmds) });
   };
 
   // Emergency stop
   const handleEStop = () => {
     setStates(ALL_OFF_STATE);
+    markPending([...VALVES, ...PUMPS].map((a) => a.id));
     postCommands({ intent: 'estop' });
   };
 
@@ -572,6 +650,7 @@ export default function ActuatorsPage() {
                   actuator={valve}
                   isOn={states[valve.id]}
                   isValve={true}
+                  isConfirmed={confirmed[valve.id]}
                   onToggle={handleToggle}
                 />
               ))}
@@ -599,6 +678,7 @@ export default function ActuatorsPage() {
                   actuator={pump}
                   isOn={states[pump.id]}
                   isValve={false}
+                  isConfirmed={confirmed[pump.id]}
                   onToggle={handleToggle}
                 />
               ))}

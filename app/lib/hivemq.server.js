@@ -1,47 +1,66 @@
 /**
- * HiveMQ Cloud REST publish helper
+ * HiveMQ Cloud MQTT publish helper
  *
- * Uses HiveMQ's HTTP API to publish a single message to a topic.
- * This works from Vercel serverless functions — no persistent connection needed.
+ * Opens one connection per call, publishes all messages, then disconnects.
+ * Works in Vercel serverless functions — no persistent connection needed.
  *
  * Required env vars:
  *   HIVEMQ_HOST      — e.g. abc123.s1.eu.hivemq.cloud  (no protocol, no port)
  *   HIVEMQ_USERNAME  — MQTT credential username
  *   HIVEMQ_PASSWORD  — MQTT credential password
- *
- * HiveMQ REST API docs:
- *   POST https://{host}:8083/api/v1/mqtt/publish
- *   Payload field must be base64-encoded.
  */
 
-export async function mqttPublish(topic, message) {
-  const { HIVEMQ_HOST, HIVEMQ_USERNAME, HIVEMQ_PASSWORD } = process.env;
+import mqtt from 'mqtt';
 
-  if (!HIVEMQ_HOST || !HIVEMQ_USERNAME || !HIVEMQ_PASSWORD) {
-    console.warn('[hivemq] Missing env vars — command not published to MQTT');
-    return;
-  }
+/**
+ * Publish one or more messages to the broker using a single connection.
+ * @param {string} topic
+ * @param {string | string[]} messages  — one string or an array of strings
+ */
+export function mqttPublish(topic, messages) {
+  const list = Array.isArray(messages) ? messages : [messages];
 
-  const url = `https://${HIVEMQ_HOST}:8083/api/v1/mqtt/publish`;
-  const credentials = Buffer.from(`${HIVEMQ_USERNAME}:${HIVEMQ_PASSWORD}`).toString('base64');
-  const payload = Buffer.from(message).toString('base64');
+  return new Promise((resolve, reject) => {
+    const { HIVEMQ_HOST, HIVEMQ_USERNAME, HIVEMQ_PASSWORD } = process.env;
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Basic ${credentials}`,
-    },
-    body: JSON.stringify({
-      topic,
-      payload,
-      qos: 1,
-      retain: false,
-    }),
+    if (!HIVEMQ_HOST || !HIVEMQ_USERNAME || !HIVEMQ_PASSWORD) {
+      console.warn('[hivemq] Missing env vars — commands not published');
+      return resolve();
+    }
+
+    const client = mqtt.connect(`mqtts://${HIVEMQ_HOST}:8883`, {
+      username: HIVEMQ_USERNAME,
+      password: HIVEMQ_PASSWORD,
+      clientId: `rainwater_dash_${Math.random().toString(16).slice(2, 10)}`,
+      connectTimeout: 8000,
+      reconnectPeriod: 0,
+    });
+
+    client.once('connect', () => {
+      // Publish all messages sequentially, then disconnect
+      let i = 0;
+      const publishNext = () => {
+        if (i >= list.length) {
+          client.end();
+          return resolve();
+        }
+        const msg = list[i++];
+        client.publish(topic, msg, { qos: 1 }, (err) => {
+          if (err) {
+            console.error('[hivemq] Publish error:', err.message);
+            client.end(true);
+            return reject(err);
+          }
+          publishNext();
+        });
+      };
+      publishNext();
+    });
+
+    client.once('error', (err) => {
+      console.error('[hivemq] Connection error:', err.message);
+      client.end(true);
+      reject(err);
+    });
   });
-
-  if (!res.ok) {
-    const text = await res.text();
-    console.error(`[hivemq] Publish failed (${res.status}): ${text}`);
-  }
 }

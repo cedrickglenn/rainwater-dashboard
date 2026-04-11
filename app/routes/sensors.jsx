@@ -4,7 +4,7 @@
  */
 
 import { json } from '@remix-run/node';
-import { useLoaderData, useRevalidator } from '@remix-run/react';
+import { useLoaderData, useNavigate, useRevalidator } from '@remix-run/react';
 import { useState } from 'react';
 import { cn } from '~/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
@@ -38,6 +38,7 @@ import {
 
 // Data and utilities
 import { sensorMetadata } from '~/data/mock-data';
+import { Tooltip, TooltipTrigger, TooltipContent } from '~/components/ui/tooltip';
 import { getDb } from '~/lib/db.server';
 import {
   SENSOR_THRESHOLDS,
@@ -57,10 +58,12 @@ export const meta = () => {
   ];
 };
 
+const RANGE_HOURS = { '1h': 1, '24h': 24, '7d': 168, '30d': 720 };
+
 export const loader = async ({ request }) => {
   const url   = new URL(request.url);
   const range = url.searchParams.get('range') ?? '24h';
-  const hours = range === 'week' ? 168 : 24;
+  const hours = RANGE_HOURS[range] ?? 24;
   const since = new Date(Date.now() - hours * 60 * 60 * 1000);
 
   const db = await getDb();
@@ -73,9 +76,9 @@ export const loader = async ({ request }) => {
   ]);
 
   const sensors = {
-    ph:          latestDoc?.ph_c6   ?? null,
-    turbidity:   latestDoc?.turb_c6 ?? null,
-    temperature: latestDoc?.temp_c6 ?? null,
+    ph:          latestDoc?.ph_c6     ?? null,
+    turbidity:   latestDoc?.turb_c6   ?? null,
+    temperature: latestDoc?.temp_c6   ?? null,
     tds:         null,
     lastUpdated: latestDoc?.timestamp ?? null,
   };
@@ -87,7 +90,7 @@ export const loader = async ({ request }) => {
     temperature: doc.temp_c6 ?? null,
   }));
 
-  return json({ sensors, historical });
+  return json({ sensors, historical, range });
 };
 
 /**
@@ -207,9 +210,15 @@ function SensorDetailCard({ type, value, data }) {
  * Sensors Page Component
  */
 export default function SensorsPage() {
-  const { sensors, historical } = useLoaderData();
-  const [timeRange, setTimeRange] = useState('24h');
+  const { sensors, historical, range } = useLoaderData();
+  const [timeRange, setTimeRange] = useState(range);
+  const navigate    = useNavigate();
   const revalidator = useRevalidator();
+
+  const handleRangeChange = (value) => {
+    setTimeRange(value);
+    navigate(`?range=${value}`);
+  };
 
   const handleRefresh = () => revalidator.revalidate();
   const isRefreshing = revalidator.state === 'loading';
@@ -228,7 +237,7 @@ export default function SensorsPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Select value={timeRange} onValueChange={setTimeRange}>
+          <Select value={timeRange} onValueChange={handleRangeChange}>
             <SelectTrigger className="w-[140px] sm:w-[160px]">
               <SelectValue placeholder="Time range" />
             </SelectTrigger>
@@ -240,20 +249,29 @@ export default function SensorsPage() {
             </SelectContent>
           </Select>
 
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-          >
-            <RefreshCw
-              className={cn('h-4 w-4', isRefreshing && 'animate-spin')}
-            />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                aria-label="Refresh data"
+              >
+                <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Refresh data</TooltipContent>
+          </Tooltip>
 
-          <Button variant="outline" size="icon">
-            <Download className="h-4 w-4" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="icon" aria-label="Download data">
+                <Download className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Download data</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 

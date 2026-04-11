@@ -17,13 +17,14 @@ import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
 import { MobileNav } from './mobile-nav';
 import { TooltipProvider } from '~/components/ui/tooltip';
+import { Toaster } from '~/components/ui/toaster';
 
 /**
  * DashboardLayout Component
  * @param {Object} props - Component props
  * @param {number} props.alertCount - Number of alerts for topbar
  */
-export function DashboardLayout({ alertCount = 0 }) {
+export function DashboardLayout({ alertCount = 0, user = null }) {
   // Mobile sidebar state - drawer for mobile (optional, can still access via hamburger)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   // Desktop sidebar collapsed state
@@ -92,6 +93,7 @@ export function DashboardLayout({ alertCount = 0 }) {
           onClose={handleCloseSidebar}
           isCollapsed={isCollapsed}
           onToggleCollapse={handleToggleCollapse}
+          user={user}
         />
 
         {/* Main content area */}
@@ -109,6 +111,7 @@ export function DashboardLayout({ alertCount = 0 }) {
             theme={theme}
             onThemeToggle={handleThemeToggle}
             alertCount={alertCount}
+            user={user}
           />
 
           {/* 
@@ -152,7 +155,8 @@ export function DashboardLayout({ alertCount = 0 }) {
           - Always visible for quick navigation
           - Hidden on desktop where sidebar handles navigation
         */}
-        <MobileNav />
+        <MobileNav user={user} />
+        <Toaster />
       </div>
     </TooltipProvider>
   );

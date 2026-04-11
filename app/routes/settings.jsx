@@ -6,6 +6,7 @@
 import { json } from '@remix-run/node';
 import { useLoaderData, useFetcher } from '@remix-run/react';
 import { useState } from 'react';
+import { Input } from '~/components/ui/input';
 import { cn } from '~/lib/utils';
 import {
   Card,
@@ -27,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '~/components/ui/select';
+import { Tooltip, TooltipTrigger, TooltipContent } from '~/components/ui/tooltip';
 import {
   Settings,
   Bell,
@@ -47,6 +49,12 @@ import {
   Wifi,
   CheckCircle2,
   AlertCircle,
+  Users,
+  UserPlus,
+  Trash2,
+  KeyRound,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 // Data
@@ -67,23 +75,59 @@ export const meta = () => {
 /**
  * Loader function
  */
-export const loader = async () => {
-  return json({
-    settings: defaultSettings,
-    system: systemStatus,
-  });
+export const loader = async ({ request }) => {
+  const { requireAdmin, listUsers, getUser } = await import('~/lib/auth.server');
+  await requireAdmin(request);
+  const [users, currentUser] = await Promise.all([listUsers(), getUser(request)]);
+  return json({ settings: defaultSettings, system: systemStatus, users, currentUser });
 };
 
-/**
- * Action function for form submissions
- */
 export const action = async ({ request }) => {
-  const formData = await request.formData();
-  const intent = formData.get('intent');
+  const { requireAdmin, getUser, createUser, updateUserRole, deleteUser, changePassword } =
+    await import('~/lib/auth.server');
+  await requireAdmin(request);
 
-  // In production, save settings to database
-  // For now, just return success
-  return json({ success: true, message: `${intent} updated successfully` });
+  const formData      = await request.formData();
+  const intent        = formData.get('intent');
+  const currentUser   = await getUser(request);
+
+  if (intent === 'create_user') {
+    const result = await createUser({
+      username:  formData.get('username'),
+      password:  formData.get('password'),
+      role:      formData.get('role'),
+      createdBy: currentUser.username,
+    });
+    return json(result.error ? { error: result.error } : { ok: true, message: 'User created' });
+  }
+
+  if (intent === 'update_role') {
+    const result = await updateUserRole({
+      username:       formData.get('username'),
+      role:           formData.get('role'),
+      requestingUser: currentUser.username,
+    });
+    return json(result.error ? { error: result.error } : { ok: true });
+  }
+
+  if (intent === 'delete_user') {
+    const result = await deleteUser({
+      username:       formData.get('username'),
+      requestingUser: currentUser.username,
+    });
+    return json(result.error ? { error: result.error } : { ok: true });
+  }
+
+  if (intent === 'change_password') {
+    const result = await changePassword({
+      username:        currentUser.username,
+      currentPassword: formData.get('currentPassword'),
+      newPassword:     formData.get('newPassword'),
+    });
+    return json(result.error ? { error: result.error } : { ok: true, message: 'Password updated' });
+  }
+
+  return json({ ok: true });
 };
 
 /**
@@ -126,6 +170,185 @@ function SettingToggle({ id, label, description, checked, onCheckedChange }) {
 /**
  * Settings Page Component
  */
+const ROLE_LABELS = { admin: 'Admin', operator: 'Operator', viewer: 'Viewer' };
+const ROLE_COLORS = {
+  admin:    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  operator: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  viewer:   'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400',
+};
+
+function UserManagement() {
+  const { users, currentUser } = useLoaderData();
+  const fetcher = useFetcher();
+  const [showAdd, setShowAdd] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [showNewPw, setShowNewPw] = useState(false);
+
+  const isLoading = fetcher.state !== 'idle';
+  const result    = fetcher.data;
+
+  return (
+    <SettingsSection icon={Users} title="User Management" description="Manage who can access this dashboard">
+      {/* User list */}
+      <div className="space-y-2">
+        {users.map((u) => (
+          <div key={u.username} className="flex items-center justify-between gap-3 rounded-lg border px-4 py-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                {u.username[0].toUpperCase()}
+              </div>
+              <div>
+                <p className="text-sm font-medium">
+                  {u.username}
+                  {u.username === currentUser.username && (
+                    <span className="ml-2 text-xs text-muted-foreground">(you)</span>
+                  )}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {u.lastLoginAt ? `Last login: ${new Date(u.lastLoginAt).toLocaleDateString()}` : 'Never logged in'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Role selector */}
+              <fetcher.Form method="post">
+                <input type="hidden" name="intent" value="update_role" />
+                <input type="hidden" name="username" value={u.username} />
+                <Select
+                  defaultValue={u.role}
+                  disabled={u.username === currentUser.username || isLoading}
+                  onValueChange={(role) => {
+                    const fd = new FormData();
+                    fd.append('intent', 'update_role');
+                    fd.append('username', u.username);
+                    fd.append('role', role);
+                    fetcher.submit(fd, { method: 'post' });
+                  }}
+                >
+                  <SelectTrigger className="h-7 w-28 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="operator">Operator</SelectItem>
+                    <SelectItem value="viewer">Viewer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </fetcher.Form>
+
+              {/* Delete */}
+              {u.username !== currentUser.username && (
+                <fetcher.Form method="post" onSubmit={(e) => {
+                  if (!confirm(`Delete user "${u.username}"?`)) e.preventDefault();
+                }}>
+                  <input type="hidden" name="intent" value="delete_user" />
+                  <input type="hidden" name="username" value={u.username} />
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button type="submit" variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Delete user</TooltipContent>
+                  </Tooltip>
+                </fetcher.Form>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Add user form */}
+      {showAdd ? (
+        <fetcher.Form method="post" className="space-y-3 rounded-lg border p-4"
+          onSubmit={() => { setShowAdd(false); setNewPassword(''); }}>
+          <input type="hidden" name="intent" value="create_user" />
+          <p className="text-sm font-medium">New User</p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Input name="username" placeholder="Username" required />
+            <div className="relative">
+              <Input
+                name="password"
+                type={showNewPw ? 'text' : 'password'}
+                placeholder="Password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+              />
+              <button type="button" onClick={() => setShowNewPw(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                {showNewPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <Select name="role" defaultValue="viewer">
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="operator">Operator</SelectItem>
+                <SelectItem value="viewer">Viewer</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {result?.error && <p className="text-xs text-destructive">{result.error}</p>}
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={isLoading}>Create</Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => setShowAdd(false)}>Cancel</Button>
+          </div>
+        </fetcher.Form>
+      ) : (
+        <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowAdd(true)}>
+          <UserPlus className="h-4 w-4" />
+          Add User
+        </Button>
+      )}
+    </SettingsSection>
+  );
+}
+
+function ChangePassword() {
+  const { currentUser } = useLoaderData();
+  const fetcher  = useFetcher();
+  const [showPw, setShowPw] = useState({ current: false, new: false });
+  const isLoading = fetcher.state !== 'idle';
+  const result    = fetcher.data;
+
+  return (
+    <SettingsSection icon={KeyRound} title="Change Password" description={`Update password for ${currentUser.username}`}>
+      <fetcher.Form method="post" className="space-y-3 max-w-sm">
+        <input type="hidden" name="intent" value="change_password" />
+        <div className="space-y-1.5">
+          <Label htmlFor="currentPassword">Current Password</Label>
+          <div className="relative">
+            <Input id="currentPassword" name="currentPassword"
+              type={showPw.current ? 'text' : 'password'} required />
+            <button type="button" onClick={() => setShowPw(v => ({ ...v, current: !v.current }))}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+              {showPw.current ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="newPassword">New Password</Label>
+          <div className="relative">
+            <Input id="newPassword" name="newPassword"
+              type={showPw.new ? 'text' : 'password'} required minLength={8} />
+            <button type="button" onClick={() => setShowPw(v => ({ ...v, new: !v.new }))}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+              {showPw.new ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+        {result?.error   && <p className="text-xs text-destructive">{result.error}</p>}
+        {result?.message && <p className="text-xs text-green-600">{result.message}</p>}
+        <Button type="submit" size="sm" disabled={isLoading}>
+          <KeyRound className="mr-2 h-4 w-4" />
+          Update Password
+        </Button>
+      </fetcher.Form>
+    </SettingsSection>
+  );
+}
+
 export default function SettingsPage() {
   const { settings, system } = useLoaderData();
   const fetcher = useFetcher();
@@ -269,12 +492,18 @@ export default function SettingsPage() {
                   Data
                 </span>
               </SelectItem>
+              <SelectItem value="users">
+                <span className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Users
+                </span>
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         {/* Desktop: Regular tabs */}
-        <TabsList className="hidden w-full grid-cols-5 sm:grid">
+        <TabsList className="hidden w-full grid-cols-6 sm:grid">
           <TabsTrigger value="notifications" className="gap-2">
             <Bell className="h-4 w-4" />
             Notifications
@@ -294,6 +523,10 @@ export default function SettingsPage() {
           <TabsTrigger value="data" className="gap-2">
             <Database className="h-4 w-4" />
             Data
+          </TabsTrigger>
+          <TabsTrigger value="users" className="gap-2">
+            <Users className="h-4 w-4" />
+            Users
           </TabsTrigger>
         </TabsList>
 
@@ -698,6 +931,12 @@ export default function SettingsPage() {
               Save Data Settings
             </Button>
           </div>
+        </TabsContent>
+
+        {/* Users Tab */}
+        <TabsContent value="users" className="space-y-6">
+          <UserManagement />
+          <ChangePassword />
         </TabsContent>
       </Tabs>
     </div>

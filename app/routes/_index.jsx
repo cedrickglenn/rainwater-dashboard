@@ -11,6 +11,7 @@
 
 import { json } from '@remix-run/node';
 import { useLoaderData } from '@remix-run/react';
+import { useState, useEffect } from 'react';
 import { Droplets, Activity, Zap, Calendar } from 'lucide-react';
 
 // Components
@@ -20,10 +21,10 @@ import { SystemControls } from '~/components/dashboard/system-controls';
 import { TankLevel } from '~/components/dashboard/tank-level';
 import { SensorAreaChart } from '~/components/dashboard/chart-wrapper';
 import { ActivityLog } from '~/components/dashboard/activity-log';
+import { toast } from '~/components/ui/toaster';
 import { StatCard } from '~/components/dashboard/stat-card';
 
 // Data and utilities
-import { systemLogs, dashboardStats } from '~/data/mock-data';
 import { getDb } from '~/lib/db.server';
 import { calculateWaterQuality } from '~/lib/water-quality';
 import { formatRelativeTime } from '~/lib/date-utils';
@@ -42,30 +43,40 @@ export const meta = () => {
 };
 
 export const loader = async () => {
-  const db = await getDb();
+  const db    = await getDb();
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  const [latestDoc, historyDocs] = await Promise.all([
-    db.collection('sensor_readings').findOne({}, { sort: { timestamp: -1 } }),
-    db.collection('sensor_readings')
-      .find({ timestamp: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } })
-      .sort({ timestamp: 1 })
-      .toArray(),
-  ]);
+  const [latestDoc, historyDocs, logDocs, actuatorDocs, alertCount, todayFlowDocs] =
+    await Promise.all([
+      db.collection('sensor_readings').findOne({}, { sort: { timestamp: -1 } }),
+      db.collection('sensor_readings')
+        .find({ timestamp: { $gte: since } })
+        .sort({ timestamp: 1 })
+        .toArray(),
+      db.collection('activity_logs')
+        .find({})
+        .sort({ timestamp: -1 })
+        .limit(30)
+        .toArray(),
+      db.collection('actuator_states').find({}).toArray(),
+      db.collection('activity_logs').countDocuments({
+        level: { $in: ['WARN', 'ERR'] },
+        timestamp: { $gte: since },
+      }),
+      db.collection('sensor_readings')
+        .find({ timestamp: { $gte: since } }, { projection: { flow: 1, _id: 0 } })
+        .toArray(),
+    ]);
 
-  // C6 = clean storage (final output) — used as primary display container.
-  // sensors is always a non-null object; missing fields are null so components
-  // can render gracefully before the ESP32 starts posting data.
+  // C6 = clean storage (final output) — primary display container.
   const sensors = {
-    ph:          latestDoc?.ph_c6          ?? null,
-    turbidity:   latestDoc?.turb_c6        ?? null,
-    temperature: latestDoc?.temp_c6        ?? null,
+    ph:          latestDoc?.ph_c6       ?? null,
+    turbidity:   latestDoc?.turb_c6     ?? null,
+    temperature: latestDoc?.temp_c6     ?? null,
     tds:         null, // no TDS sensor in this hardware build
-    lastUpdated: latestDoc?.timestamp      ?? null,
-    lvl_c6:      latestDoc?.lvl_c6         ?? 0,
-    filterMode:  latestDoc?.filter_mode    ?? 0,
-    ffState:     latestDoc?.ff_state       ?? 0,
-    backwash:    latestDoc?.backwash_state ?? 0,
-    flow:        latestDoc?.flow           ?? null,
+    lastUpdated: latestDoc?.timestamp   ?? null,
+    lvl_c6:      latestDoc?.lvl_c6      ?? 0,
+    filterMode:  latestDoc?.filter_mode ?? 0,
   };
 
   const historical = historyDocs.map((doc) => ({
@@ -81,24 +92,51 @@ export const loader = async () => {
     temperature: sensors.temperature,
   });
 
+  // Potability score: % of known sensors currently in safe range
+  const knownStatuses = Object.values(waterQuality.sensors).filter((s) => s !== 'unknown');
+  const potabilityScore = knownStatuses.length
+    ? Math.round((knownStatuses.filter((s) => s === 'safe').length / knownStatuses.length) * 100)
+    : null;
+
+  // Water collected today: sum flow field if sensor data is present, otherwise null
+  const hasFlowData = todayFlowDocs.some((d) => d.flow != null);
+  const todayWaterCollected = hasFlowData
+    ? Math.round(todayFlowDocs.reduce((sum, d) => sum + (d.flow ?? 0), 0))
+    : null;
+
+  // Pump status: any pump currently commanded ON
+  const pumpStatus = actuatorDocs.some((d) => d.type === 'PUMP' && d.state === 'ON');
+
   return json({
     sensors,
     historical,
     waterQuality,
     hasData: !!latestDoc,
     system: {
-      tankLevel:      sensors.lvl_c6,
-      filterStatus:   sensors.filterMode > 0,
-      uvStatus:       false,
-      pumpStatus:     false,
-      systemHealth:   waterQuality.overall === 'unsafe'  ? 'critical'
-                    : waterQuality.overall === 'warning' ? 'warning'
-                    : 'good',
-      lastMaintenance: null,
-      nextMaintenance: null,
+      tankLevel:    sensors.lvl_c6,
+      filterStatus: sensors.filterMode > 0,
+      uvStatus:     false,       // no UV lamp in this hardware build
+      pumpStatus,
+      systemHealth: waterQuality.overall === 'unsafe'  ? 'critical'
+                  : waterQuality.overall === 'warning' ? 'warning'
+                  : 'good',
     },
-    logs:  systemLogs.slice(0, 5),
-    stats: dashboardStats,
+    logs: logDocs.reverse().map((e) => ({
+      id:        e._id.toString(),
+      source:    e.source,
+      level:     e.level,
+      message:   e.message,
+      type:      e.type     ?? 'info',
+      category:  e.category ?? e.source,
+      timestamp: e.timestamp,
+    })),
+    stats: {
+      potabilityScore,
+      todayWaterCollected,
+      weeklyWaterCollected: null,  // requires flow meter data over 7 days
+      systemUptime:         null,  // requires uptime telemetry from firmware
+      alertsCount:          alertCount,
+    },
   });
 };
 
@@ -114,8 +152,34 @@ export const loader = async () => {
  * 6. System controls & activity log
  */
 export default function DashboardPage() {
-  const { sensors, system, historical, logs, stats, waterQuality } =
+  const { sensors, system, historical, logs: initialLogs, stats, waterQuality } =
     useLoaderData();
+
+  const [logs, setLogs]             = useState(initialLogs);
+  const [liveStatus, setLiveStatus] = useState('connecting'); // connecting | live | disconnected
+
+  useEffect(() => {
+    const es = new EventSource('/api/activity/stream');
+
+    es.addEventListener('ping', () => setLiveStatus('live'));
+
+    es.addEventListener('log', (e) => {
+      const entry = JSON.parse(e.data);
+      setLiveStatus('live');
+      setLogs((prev) => {
+        if (prev.some((l) => l.id === entry.id)) return prev;
+        const next = [...prev, entry];
+        return next.length > 50 ? next.slice(next.length - 50) : next;
+      });
+      // Toast the new entry — type maps directly to toast style
+      const prefix = entry.source ? `[${entry.source}] ` : '';
+      toast(`${prefix}${entry.message}`, { type: entry.type });
+    });
+
+    es.onerror = () => setLiveStatus('disconnected');
+
+    return () => es.close();
+  }, []);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -154,7 +218,6 @@ export default function DashboardPage() {
           title="Water Today"
           value={stats.todayWaterCollected}
           unit="L"
-          change={12}
           icon={Droplets}
           iconColor="bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400"
         />
@@ -162,7 +225,6 @@ export default function DashboardPage() {
           title="Potability"
           value={stats.potabilityScore}
           unit="%"
-          change={2}
           icon={Activity}
           iconColor="bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400"
         />
@@ -184,7 +246,6 @@ export default function DashboardPage() {
           title="This Week"
           value={stats.weeklyWaterCollected}
           unit="L"
-          change={8}
           icon={Calendar}
           iconColor="bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-400"
         />
@@ -196,7 +257,6 @@ export default function DashboardPage() {
           title="Water Collected Today"
           value={stats.todayWaterCollected}
           unit="L"
-          change={12}
           icon={Droplets}
           iconColor="bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400"
         />
@@ -204,7 +264,6 @@ export default function DashboardPage() {
           title="Potability Score"
           value={stats.potabilityScore}
           unit="%"
-          change={2}
           icon={Activity}
           iconColor="bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400"
         />
@@ -219,7 +278,6 @@ export default function DashboardPage() {
           title="This Week"
           value={stats.weeklyWaterCollected}
           unit="L"
-          change={8}
           icon={Calendar}
           iconColor="bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-400"
         />
@@ -289,7 +347,7 @@ export default function DashboardPage() {
 
         <section className="flex flex-col space-y-3">
           <h2 className="text-lg font-semibold">Recent Activity</h2>
-          <ActivityLog logs={logs} />
+          <ActivityLog logs={logs} liveStatus={liveStatus} />
         </section>
       </div>
     </div>

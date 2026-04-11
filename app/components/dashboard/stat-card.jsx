@@ -69,8 +69,13 @@ export function StatCard({
             {title}
           </p>
           <div className="mt-1.5 flex items-baseline gap-1.5">
-            <span className="text-2xl font-bold sm:text-3xl">{value}</span>
-            {unit && (
+            <span className={cn(
+              'text-2xl font-bold sm:text-3xl',
+              value == null && 'text-muted-foreground'
+            )}>
+              {value ?? '—'}
+            </span>
+            {unit && value != null && (
               <span className="text-sm text-muted-foreground sm:text-base">
                 {unit}
               </span>

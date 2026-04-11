@@ -13,32 +13,14 @@
 
 import { NavLink } from '@remix-run/react';
 import { cn } from '~/lib/utils';
-import { LayoutDashboard, Gauge, History, Settings } from 'lucide-react';
+import { LayoutDashboard, Gauge, History, Settings, Wrench } from 'lucide-react';
 
-/**
- * Navigation items - same as sidebar for consistency
- */
 const NAV_ITEMS = [
-  {
-    name: 'Home',
-    href: '/',
-    icon: LayoutDashboard,
-  },
-  {
-    name: 'Sensors',
-    href: '/sensors',
-    icon: Gauge,
-  },
-  {
-    name: 'History',
-    href: '/history',
-    icon: History,
-  },
-  {
-    name: 'Settings',
-    href: '/settings',
-    icon: Settings,
-  },
+  { name: 'Home',     href: '/',          icon: LayoutDashboard, minRole: null       },
+  { name: 'Sensors',  href: '/sensors',   icon: Gauge,           minRole: null       },
+  { name: 'History',  href: '/history',   icon: History,         minRole: null       },
+  { name: 'Controls', href: '/actuators', icon: Wrench,          minRole: 'operator' },
+  { name: 'Settings', href: '/settings',  icon: Settings,        minRole: 'admin'    },
 ];
 
 /**
@@ -82,28 +64,26 @@ function MobileNavItem({ item }) {
  * MobileNav Component
  * Fixed bottom navigation bar for mobile devices
  */
-export function MobileNav() {
+export function MobileNav({ user = null }) {
+  const ROLE_LEVEL   = { admin: 3, operator: 2, viewer: 1 };
+  const userLevel    = ROLE_LEVEL[user?.role] ?? 0;
+  const visibleItems = NAV_ITEMS.filter((item) => !item.minRole || userLevel >= (ROLE_LEVEL[item.minRole] ?? 0));
+
   return (
     <nav
       className={cn(
-        // Fixed bottom position - use inset-x-0 for proper containment
         'fixed inset-x-0 bottom-0 z-50',
-        // Explicit width constraint to prevent overflow
         'w-full max-w-full',
-        // Only show on mobile (hidden on lg and up)
         'lg:hidden',
-        // Visual styling - frosted glass effect
         'border-t bg-card/95 backdrop-blur-lg',
         'supports-[backdrop-filter]:bg-card/80',
-        // Safe area padding for notched devices
         'pb-safe'
       )}
       role="navigation"
       aria-label="Mobile navigation"
     >
-      {/* Inner container - use justify-evenly for better distribution without overflow */}
       <div className="flex w-full items-center justify-evenly px-1 py-1.5">
-        {NAV_ITEMS.map((item) => (
+        {visibleItems.map((item) => (
           <MobileNavItem key={item.href} item={item} />
         ))}
       </div>

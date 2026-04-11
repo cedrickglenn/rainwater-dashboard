@@ -70,12 +70,9 @@ export const meta = () => [
 // Remix loader — swap in real API calls when backend is live
 // ---------------------------------------------------------------------------
 
-export const loader = async () => {
-  // TODO: fetch live calibration state and recent ACKs
-  // const [acksRes, stateRes] = await Promise.all([
-  //   fetch(`${process.env.API_BASE}/api/calibration/acks`),
-  //   fetch(`${process.env.API_BASE}/api/calibration/state`),
-  // ]);
+export const loader = async ({ request }) => {
+  const { requireAdmin } = await import('~/lib/auth.server');
+  await requireAdmin(request);
   return json({ acks: [], calState: null });
 };
 
@@ -84,28 +81,21 @@ export const loader = async () => {
 // ---------------------------------------------------------------------------
 
 export const action = async ({ request }) => {
+  const { requireAdmin } = await import('~/lib/auth.server');
+  await requireAdmin(request);
+
   const formData  = await request.formData();
   const command   = formData.get('command');
   const container = formData.get('container');
   const point     = formData.get('point');
   const value     = formData.get('value');
 
-  // Build the C, line that will end up on the Mega's serial port
   let cmdLine = `C,${command},${container}`;
   if (point && point !== '') cmdLine += `,${point}`;
   if (value && value !== '') cmdLine += `,${value}`;
 
-  const { getDb } = await import('~/lib/db.server');
-  const db = await getDb();
-  await db.collection('calibration_commands').insertOne({
-    command,
-    container,
-    point,
-    value,
-    cmdLine,
-    status:    'pending',
-    createdAt: new Date(),
-  });
+  const { mqttPublish } = await import('~/lib/hivemq.server');
+  await mqttPublish('rainwater/calibration/commands', cmdLine);
 
   return json({ ok: true, queued: cmdLine });
 };

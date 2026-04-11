@@ -1,8 +1,9 @@
 // Resource route: /api/calibration
-// POST — React calibration page queues a calibration command
+// POST — React calibration page sends a calibration command.
+//        Publishes directly to MQTT topic rainwater/calibration/commands.
 
 import { json } from '@remix-run/node';
-import { getDb } from '~/lib/db.server';
+import { mqttPublish } from '~/lib/hivemq.server';
 
 export async function action({ request }) {
     if (request.method !== 'POST') {
@@ -12,16 +13,10 @@ export async function action({ request }) {
     const { command, container, point, value } = await request.json();
 
     let cmdLine = `C,${command},${container}`;
-    if (point && point !== '')                              cmdLine += `,${point}`;
+    if (point && point !== '')                               cmdLine += `,${point}`;
     if (value !== undefined && value !== null && value !== '') cmdLine += `,${value}`;
 
-    const db = await getDb();
-    await db.collection('calibration_commands').insertOne({
-        command, container, point, value,
-        cmdLine,
-        status:    'pending',
-        createdAt: new Date(),
-    });
+    await mqttPublish('rainwater/calibration/commands', cmdLine);
 
     return json({ ok: true, cmdLine });
 }

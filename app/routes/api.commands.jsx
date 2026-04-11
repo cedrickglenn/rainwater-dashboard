@@ -35,10 +35,7 @@ export async function action({ request }) {
     cmdLines = [`C,${type},${id},${state}`];
   }
 
-  // Publish each command to MQTT (fire all in parallel — order preserved by ESP32 queue)
-  await Promise.all(
-    cmdLines.map((cmd) => mqttPublish('rainwater/commands', cmd))
-  );
+  await mqttPublish('rainwater/commands', cmdLines);
 
   return json({ ok: true, published: cmdLines });
 }

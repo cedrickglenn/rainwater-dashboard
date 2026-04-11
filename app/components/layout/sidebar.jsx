@@ -35,36 +35,42 @@ const NAV_ITEMS = [
     href: '/',
     icon: LayoutDashboard,
     description: 'Overview and status',
+    adminOnly: false,
   },
   {
     name: 'Sensors',
     href: '/sensors',
     icon: Gauge,
     description: 'Sensor readings',
+    adminOnly: false,
   },
   {
     name: 'History',
     href: '/history',
     icon: History,
     description: 'Logs and data',
+    adminOnly: false,
   },
   {
     name: 'Actuators',
     href: '/actuators',
     icon: Wrench,
     description: 'Manual pump & valve control',
+    minRole: 'operator',
   },
   {
     name: 'Calibration',
     href: '/calibration',
     icon: SlidersHorizontal,
     description: 'Sensor calibration',
+    minRole: 'admin',
   },
   {
     name: 'Settings',
     href: '/settings',
     icon: Settings,
     description: 'System settings',
+    minRole: 'admin',
   },
 ];
 
@@ -123,7 +129,10 @@ export function Sidebar({
   onClose,
   isCollapsed = false,
   onToggleCollapse,
+  user = null,
 }) {
+  const ROLE_LEVEL = { admin: 3, operator: 2, viewer: 1 };
+  const userLevel  = ROLE_LEVEL[user?.role] ?? 0;
   return (
     <>
       {/* Mobile overlay - darker for better contrast */}
@@ -186,7 +195,7 @@ export function Sidebar({
         {/* Navigation - generous spacing between items */}
         <nav className="flex-1 space-y-1.5 p-3 overflow-y-auto">
           <div className="space-y-1.5">
-            {NAV_ITEMS.map((item) => (
+            {NAV_ITEMS.filter((item) => !item.minRole || userLevel >= (ROLE_LEVEL[item.minRole] ?? 0)).map((item) => (
               <NavItem
                 key={item.href}
                 item={item}
