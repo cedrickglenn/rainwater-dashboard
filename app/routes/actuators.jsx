@@ -10,7 +10,7 @@
 
 import { json } from '@remix-run/node';
 import { useFetcher } from '@remix-run/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { cn } from '~/lib/utils';
 import {
   Card,
@@ -199,7 +199,7 @@ export const action = async ({ request }) => {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function ActuatorCard({ actuator, isOn, isValve, onToggle, disabled }) {
+function ActuatorCard({ actuator, isOn, isValve, onToggle }) {
   const { id, label, route, description } = actuator;
 
   return (
@@ -254,7 +254,6 @@ function ActuatorCard({ actuator, isOn, isValve, onToggle, disabled }) {
         size="sm"
         variant={isOn ? 'destructive' : 'outline'}
         className="w-full"
-        disabled={disabled}
         onClick={() => onToggle(isValve ? 'VALVE' : 'PUMP', id, isOn)}
       >
         {isOn ? `Turn Off ${label}` : `Turn On ${label}`}
@@ -335,40 +334,46 @@ function QuickActionCard({ action: qa, activeStates, onStart, onStop, disabled }
 // ---------------------------------------------------------------------------
 
 export default function ActuatorsPage() {
-  const fetcher  = useFetcher();
+  const fetcher        = useFetcher();
   const [states, setStates] = useState(ALL_OFF_STATE);
+  const pendingQueue   = useRef([]);
+  const debounceTimer  = useRef(null);
 
   // Sync optimistic state when fetcher resolves
   useEffect(() => {
     if (!fetcher.data?.ok) return;
-
     if (fetcher.data.intent === 'estop') {
       setStates(ALL_OFF_STATE);
-      return;
-    }
-    if (fetcher.data.intent === 'quick_action') {
-      // Parent updates states inline via onStart/onStop handlers
-      return;
-    }
-    if (fetcher.data.actuatorId) {
-      setStates((prev) => ({
-        ...prev,
-        [fetcher.data.actuatorId]: fetcher.data.state === 'ON',
-      }));
     }
   }, [fetcher.data]);
 
-  const isSending = fetcher.state === 'submitting';
-  const anyOn     = Object.values(states).some(Boolean);
+  const anyOn = Object.values(states).some(Boolean);
 
-  // Single actuator toggle
+  // Flush accumulated toggle commands as a single insertMany
+  const flushQueue = useCallback(() => {
+    const cmds = pendingQueue.current;
+    if (cmds.length === 0) return;
+    pendingQueue.current = [];
+
+    if (cmds.length === 1) {
+      const { type, id, state } = cmds[0];
+      fetcher.submit({ type, id, state }, { method: 'post' });
+    } else {
+      fetcher.submit(
+        { intent: 'quick_action', commands: JSON.stringify(cmds) },
+        { method: 'post' }
+      );
+    }
+  }, [fetcher]);
+
+  // Single actuator toggle — updates UI immediately, batches the network call
   const handleToggle = (type, id, currentlyOn) => {
     const newState = currentlyOn ? 'OFF' : 'ON';
     setStates((prev) => ({ ...prev, [id]: newState === 'ON' }));
-    fetcher.submit(
-      { type, id, state: newState },
-      { method: 'post' }
-    );
+
+    pendingQueue.current.push({ type, id, state: newState });
+    clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(flushQueue, 300);
   };
 
   // Quick action start
@@ -476,7 +481,6 @@ export default function ActuatorsPage() {
                   isOn={states[valve.id]}
                   isValve={true}
                   onToggle={handleToggle}
-                  disabled={isSending}
                 />
               ))}
             </div>
@@ -501,7 +505,6 @@ export default function ActuatorsPage() {
                   isOn={states[pump.id]}
                   isValve={false}
                   onToggle={handleToggle}
-                  disabled={isSending}
                 />
               ))}
             </div>
