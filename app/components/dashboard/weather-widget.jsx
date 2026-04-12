@@ -164,7 +164,7 @@ export function WeatherWidget({ weather, className }) {
             <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
               Next {hourly.length} hours
             </p>
-            <div className="flex gap-1 overflow-x-auto pb-1">
+            <div className="grid pb-1" style={{ gridTemplateColumns: `repeat(${hourly.length}, 1fr)` }}>
               {hourly.map((h) => {
                 const timeLabel = new Date(h.time + ':00+08:00').toLocaleTimeString('en-PH', {
                   hour: 'numeric',
@@ -173,7 +173,7 @@ export function WeatherWidget({ weather, className }) {
                 return (
                   <div
                     key={h.time}
-                    className="flex min-w-[48px] flex-col items-center gap-0.5 rounded-lg px-1.5 py-1.5 text-center hover:bg-muted/50"
+                    className="flex flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 text-center hover:bg-muted/50 min-w-0"
                   >
                     <p className="text-[10px] text-muted-foreground">{timeLabel}</p>
                     <WeatherIcon name={h.icon} className="h-4 w-4 text-amber-400 dark:text-amber-300" />

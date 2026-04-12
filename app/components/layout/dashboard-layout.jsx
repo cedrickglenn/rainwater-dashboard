@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Outlet } from '@remix-run/react';
+import { Outlet, useNavigation } from '@remix-run/react';
 import { cn } from '~/lib/utils';
 import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
@@ -24,6 +24,9 @@ import { TooltipProvider } from '~/components/ui/tooltip';
  * @param {number} props.alertCount - Number of alerts for topbar
  */
 export function DashboardLayout({ alertCount = 0, user = null, weather = null }) {
+  const navigation = useNavigation();
+  const isNavigating = navigation.state !== 'idle';
+
   // Mobile sidebar state - drawer for mobile (optional, can still access via hamburger)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   // Desktop sidebar collapsed state
@@ -82,6 +85,13 @@ export function DashboardLayout({ alertCount = 0, user = null, weather = null })
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-background">
+        {/* Page transition progress bar */}
+        <div
+          className={cn(
+            'fixed top-0 left-0 z-[100] h-0.5 bg-primary transition-all duration-300 ease-out',
+            isNavigating ? 'w-[85%] opacity-100' : 'w-0 opacity-0'
+          )}
+        />
         {/* 
           Sidebar - Desktop only (lg+)
           On mobile, primary navigation is via bottom nav
@@ -124,7 +134,8 @@ export function DashboardLayout({ alertCount = 0, user = null, weather = null })
           */}
           <main
             className={cn(
-              'flex-1',
+              'flex-1 min-w-0 overflow-x-hidden transition-opacity duration-200',
+              isNavigating && 'opacity-60 pointer-events-none',
               // Mobile: compact horizontal padding, generous bottom for nav
               'px-4 py-4 pb-24',
               // Tablet: slightly more padding
