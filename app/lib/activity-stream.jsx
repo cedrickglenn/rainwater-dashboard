@@ -53,9 +53,12 @@ export function ActivityStreamProvider({ children }) {
       // Notify all subscribed pages
       listenersRef.current.forEach((fn) => fn(entry));
 
-      // Fire a global toast — visible on every route
-      const prefix = entry.source ? `[${entry.source}] ` : '';
-      toast(`${prefix}${entry.message}`, { type: entry.type });
+      // Only toast for warnings and errors — routine info/success entries
+      // are visible in the activity log and don't need to interrupt the user
+      if (entry.type === 'warning' || entry.type === 'error') {
+        const prefix = entry.source ? `[${entry.source}] ` : '';
+        toast(`${prefix}${entry.message}`, { type: entry.type });
+      }
     });
 
     es.addEventListener('device-status', (e) => {

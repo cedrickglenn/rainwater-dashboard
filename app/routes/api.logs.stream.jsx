@@ -1,14 +1,18 @@
 // Resource route: /api/logs/stream
 //
 // GET — Server-Sent Events stream.
-//       Subscribes to the HiveMQ rainwater/logs topic using the
-//       read-only subscriber credential and forwards each message
+//       Subscribes to two HiveMQ topics and forwards each message
 //       to the browser. Credentials never leave the server.
+//
+// Topics:
+//   rainwater/logs  — structured L, frames only (meaningful events)
+//   rainwater/debug — raw wsLogf() output (verbose debug, every sensor line)
 //
 // Event types:
 //   ping   — keepalive, payload { ts }
 //   status — MQTT connection state, payload { connected, error? }
-//   log    — parsed log line, payload { raw, level, source, message, ts }
+//   log    — parsed log line, payload { raw, level, source, message, ts, channel }
+//            channel: 'logs' | 'debug'
 
 import mqtt from 'mqtt';
 
@@ -86,13 +90,14 @@ export async function loader({ request }) {
 
       client.on('connect', () => {
         enqueue('status', { connected: true });
-        client.subscribe('rainwater/logs', { qos: 0 });
+        client.subscribe(['rainwater/logs', 'rainwater/debug'], { qos: 0 });
       });
 
-      client.on('message', (_topic, payload) => {
-        const raw   = payload.toString();
-        const entry = parseLogLine(raw);
-        enqueue('log', { ...entry, ts: Date.now() });
+      client.on('message', (topic, payload) => {
+        const raw     = payload.toString();
+        const channel = topic === 'rainwater/debug' ? 'debug' : 'logs';
+        const entry   = parseLogLine(raw);
+        enqueue('log', { ...entry, ts: Date.now(), channel });
       });
 
       client.on('error', (err) => {

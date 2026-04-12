@@ -1,7 +1,13 @@
 /**
  * SerialMonitor
  * Streams live log output from the ESP32/Mega via MQTT → SSE.
+ *
+ * Two channels:
+ *   rainwater/logs  — structured events (boot, WiFi, MQTT, errors, MEGA logs)
+ *   rainwater/debug — raw wsLogf() verbose output (every debug print)
+ *
  * Displays a terminal-style panel with level-based colour coding.
+ * Debug lines are dimmer and toggleable via the DBG button.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -83,6 +89,18 @@ function StatusDot({ mqttStatus }) {
 // ---------------------------------------------------------------------------
 
 function LogLine({ line }) {
+  const isDebug = line.channel === 'debug';
+
+  if (isDebug) {
+    return (
+      <div className="flex gap-2 font-mono text-xs leading-relaxed opacity-40">
+        <span className="shrink-0 text-zinc-600">{formatTime(line.ts)}</span>
+        <span className="shrink-0 w-9 text-zinc-600">DBG</span>
+        <span className="break-all text-zinc-500">{line.raw}</span>
+      </div>
+    );
+  }
+
   const { text: levelText, label } = levelStyle(line.level);
   return (
     <div className="flex gap-2 font-mono text-xs leading-relaxed">
@@ -104,34 +122,31 @@ export function SerialMonitor({ className }) {
   const [isOpen,       setIsOpen]       = useState(true);
   const [lines,        setLines]        = useState([]);
   const [isPaused,     setIsPaused]     = useState(false);
+  const [showDebug,    setShowDebug]    = useState(true);
   const [sseStatus,    setSseStatus]    = useState('connecting'); // connecting | live | disconnected
   const [mqttStatus,   setMqttStatus]   = useState('connecting'); // connecting | live | reconnecting
 
   const containerRef    = useRef(null);
   const isPausedRef     = useRef(isPaused);
   const isAutoScrollRef = useRef(false);
-  isPausedRef.current = isPaused;
+  isPausedRef.current   = isPaused;
 
-  // Auto-scroll to bottom unless paused.
-  // Uses instant scrollTop assignment (not smooth) so the scroll event fires
-  // synchronously — isAutoScrollRef guards against it falsely triggering pause.
+  // Auto-scroll to bottom unless paused
   useEffect(() => {
     const el = containerRef.current;
     if (!el || isPaused) return;
     isAutoScrollRef.current = true;
     el.scrollTop = el.scrollHeight;
-    // rAF fires after the synchronous scroll event has already been handled
     requestAnimationFrame(() => { isAutoScrollRef.current = false; });
   }, [lines, isPaused]);
 
-  // Pause when user scrolls up; resume when they scroll back to bottom.
-  // Ignored entirely for programmatic scrolls.
+  // Pause on scroll up, resume on scroll to bottom
   const handleScroll = useCallback(() => {
     if (isAutoScrollRef.current) return;
     const el = containerRef.current;
     if (!el) return;
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-    if (atBottom && isPausedRef.current)  setIsPaused(false);
+    if (atBottom  && isPausedRef.current)  setIsPaused(false);
     if (!atBottom && !isPausedRef.current) setIsPaused(true);
   }, []);
 
@@ -146,16 +161,18 @@ export function SerialMonitor({ className }) {
     es.addEventListener('status', (e) => {
       const { connected, reconnecting } = JSON.parse(e.data);
       setSseStatus('live');
-      if (connected)      setMqttStatus('live');
+      if (connected)         setMqttStatus('live');
       else if (reconnecting) setMqttStatus('reconnecting');
-      else                setMqttStatus('connecting');
+      else                   setMqttStatus('connecting');
     });
 
     es.addEventListener('log', (e) => {
       if (isPausedRef.current) return;
       const entry = JSON.parse(e.data);
       setSseStatus('live');
-      setMqttStatus('live');
+      // Only promote mqttStatus to live on structured log events —
+      // debug traffic alone doesn't confirm the broker is healthy
+      if (entry.channel === 'logs') setMqttStatus('live');
       setLines((prev) => {
         const next = [...prev, { id: `${entry.ts}-${Math.random()}`, ...entry }];
         return next.length > MAX_LINES ? next.slice(next.length - MAX_LINES) : next;
@@ -170,9 +187,12 @@ export function SerialMonitor({ className }) {
     return () => es.close();
   }, [isOpen]);
 
-  const handleClear   = () => setLines([]);
-  const togglePause   = () => setIsPaused((p) => !p);
-  const toggleOpen    = () => setIsOpen((o) => !o);
+  const handleClear = () => setLines([]);
+  const togglePause = () => setIsPaused((p) => !p);
+  const toggleOpen  = () => setIsOpen((o) => !o);
+
+  const visibleLines = showDebug ? lines : lines.filter((l) => l.channel !== 'debug');
+  const debugCount   = lines.filter((l) => l.channel === 'debug').length;
 
   return (
     <Card className={cn('overflow-hidden', className)}>
@@ -187,7 +207,7 @@ export function SerialMonitor({ className }) {
             {isOpen && <StatusDot mqttStatus={mqttStatus} />}
             {isOpen && (
               <span className="hidden text-[10px] font-normal text-zinc-500 sm:block">
-                rainwater/logs
+                rainwater/logs · rainwater/debug
               </span>
             )}
           </div>
@@ -196,6 +216,25 @@ export function SerialMonitor({ className }) {
           <div className="flex items-center gap-1">
             {isOpen && (
               <>
+                {/* Debug toggle */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowDebug((d) => !d)}
+                  className={cn(
+                    'h-7 px-2 font-mono text-[10px]',
+                    showDebug ? 'text-zinc-400' : 'text-zinc-600'
+                  )}
+                  title={showDebug ? 'Hide debug output' : 'Show debug output'}
+                >
+                  DBG
+                  {debugCount > 0 && (
+                    <span className="ml-1 text-zinc-600">
+                      {debugCount}
+                    </span>
+                  )}
+                </Button>
+
                 <Button
                   variant="ghost"
                   size="icon"
@@ -208,6 +247,7 @@ export function SerialMonitor({ className }) {
                     : <PauseCircle className="h-4 w-4 text-zinc-400" />
                   }
                 </Button>
+
                 <Button
                   variant="ghost"
                   size="icon"
@@ -243,15 +283,17 @@ export function SerialMonitor({ className }) {
             onScroll={handleScroll}
             className="h-64 overflow-y-auto bg-zinc-950 px-4 py-3 sm:h-80"
           >
-            {lines.length === 0 ? (
+            {visibleLines.length === 0 ? (
               <p className="font-mono text-xs text-zinc-600">
                 {sseStatus === 'connecting'
                   ? 'Connecting to MQTT broker…'
-                  : 'Waiting for output on rainwater/logs…'}
+                  : showDebug
+                    ? 'Waiting for output on rainwater/logs · rainwater/debug…'
+                    : 'Waiting for structured events on rainwater/logs…'}
               </p>
             ) : (
               <div className="space-y-0.5">
-                {lines.map((line) => (
+                {visibleLines.map((line) => (
                   <LogLine key={line.id} line={line} />
                 ))}
               </div>
@@ -261,8 +303,11 @@ export function SerialMonitor({ className }) {
           {/* Footer bar */}
           <div className="flex items-center justify-between border-t bg-zinc-900 px-4 py-1.5">
             <span className="font-mono text-[10px] text-zinc-600">
-              {lines.length} line{lines.length !== 1 ? 's' : ''}
-              {lines.length >= MAX_LINES ? ` (capped at ${MAX_LINES})` : ''}
+              {visibleLines.length} line{visibleLines.length !== 1 ? 's' : ''}
+              {!showDebug && debugCount > 0 && (
+                <span className="ml-2 text-zinc-700">{debugCount} debug hidden</span>
+              )}
+              {lines.length >= MAX_LINES && ` (capped at ${MAX_LINES})`}
             </span>
             {isPaused && (
               <span className="font-mono text-[10px] text-amber-400">
