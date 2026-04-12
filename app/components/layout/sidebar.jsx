@@ -14,6 +14,8 @@ import { NavLink } from '@remix-run/react';
 import { cn } from '~/lib/utils';
 import { Button } from '~/components/ui/button';
 import { Separator } from '~/components/ui/separator';
+import { useActivityStream } from '~/lib/activity-stream';
+import { formatRelativeTime } from '~/lib/date-utils';
 import {
   LayoutDashboard,
   Gauge,
@@ -117,6 +119,33 @@ function NavItem({ item, isCollapsed, onClick }) {
 }
 
 /**
+ * DeviceStatusDot — a single device row in the System Status panel.
+ */
+function DeviceStatusDot({ label, online, lastSeen }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2">
+        <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
+          {online && (
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+          )}
+          <span
+            className={cn(
+              'relative inline-flex h-2.5 w-2.5 rounded-full',
+              online ? 'bg-green-500' : 'bg-red-500'
+            )}
+          />
+        </span>
+        <span className="text-sm text-muted-foreground">{label}</span>
+      </div>
+      <span className={cn('text-[11px]', online ? 'text-green-600 dark:text-green-400' : 'text-red-500')}>
+        {online ? 'Online' : lastSeen ? `${formatRelativeTime(lastSeen)}` : 'Offline'}
+      </span>
+    </div>
+  );
+}
+
+/**
  * Sidebar Component
  * @param {Object} props - Component props
  * @param {boolean} props.isOpen - Mobile sidebar open state
@@ -133,6 +162,7 @@ export function Sidebar({
 }) {
   const ROLE_LEVEL = { admin: 3, operator: 2, viewer: 1 };
   const userLevel  = ROLE_LEVEL[user?.role] ?? 0;
+  const { deviceStatus } = useActivityStream();
   return (
     <>
       {/* Mobile overlay - darker for better contrast */}
@@ -212,15 +242,18 @@ export function Sidebar({
             <>
               <Separator className="mb-3" />
               <div className="rounded-xl bg-muted/50 p-4">
-                <p className="text-sm font-medium">System Status</p>
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500"></span>
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    All systems operational
-                  </span>
+                <p className="text-sm font-medium mb-3">System Status</p>
+                <div className="space-y-2">
+                  <DeviceStatusDot
+                    label="ESP32"
+                    online={deviceStatus.esp32.online}
+                    lastSeen={deviceStatus.esp32.lastSeen}
+                  />
+                  <DeviceStatusDot
+                    label="Arduino MEGA"
+                    online={deviceStatus.mega.online}
+                    lastSeen={deviceStatus.mega.lastSeen}
+                  />
                 </div>
               </div>
             </>

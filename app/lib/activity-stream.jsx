@@ -6,7 +6,11 @@
  * Toasts are fired here so they work on every page.
  *
  * Usage:
- *   const { liveStatus, subscribe } = useActivityStream();
+ *   const { liveStatus, deviceStatus, subscribe } = useActivityStream();
+ *
+ *   // deviceStatus shape:
+ *   //   { esp32: { online: bool, lastSeen: string|null },
+ *   //     mega:  { online: bool, lastSeen: string|null } }
  *
  *   useEffect(() => {
  *     return subscribe((entry) => {
@@ -20,8 +24,14 @@ import { toast } from '~/components/ui/toaster';
 
 const ActivityStreamContext = createContext(null);
 
+const INITIAL_DEVICE_STATUS = {
+  esp32: { online: false, lastSeen: null },
+  mega:  { online: false, lastSeen: null },
+};
+
 export function ActivityStreamProvider({ children }) {
   const [liveStatus, setLiveStatus] = useState('connecting');
+  const [deviceStatus, setDeviceStatus] = useState(INITIAL_DEVICE_STATUS);
   const listenersRef = useRef(new Set());
 
   // Pages call subscribe(fn) to receive new entries.
@@ -48,13 +58,17 @@ export function ActivityStreamProvider({ children }) {
       toast(`${prefix}${entry.message}`, { type: entry.type });
     });
 
+    es.addEventListener('device-status', (e) => {
+      setDeviceStatus(JSON.parse(e.data));
+    });
+
     es.onerror = () => setLiveStatus('disconnected');
 
     return () => es.close();
   }, []);
 
   return (
-    <ActivityStreamContext.Provider value={{ liveStatus, subscribe }}>
+    <ActivityStreamContext.Provider value={{ liveStatus, deviceStatus, subscribe }}>
       {children}
     </ActivityStreamContext.Provider>
   );

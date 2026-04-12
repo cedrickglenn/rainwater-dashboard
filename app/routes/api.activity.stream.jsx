@@ -5,9 +5,16 @@
 //       them to the dashboard in real time.
 //
 // Event types:
-//   ping  — keepalive, payload { ts }
-//   log   — new log entry, payload matches ActivityLog item shape
-//   error — unrecoverable server error
+//   ping          — keepalive, payload { ts }
+//   log           — new log entry, payload matches ActivityLog item shape
+//   device-status — device liveness, payload:
+//                     { esp32: { online, lastSeen }, mega: { online, lastSeen } }
+//   error         — unrecoverable server error
+//
+// Device-status logic:
+//   ESP32 online  — device_heartbeats{ source:"esp32" }.lastSeen < 60 s ago
+//   MEGA  online  — sensor_readings.timestamp < 10 s ago
+//                   (sensor data only flows when MEGA is actively sending)
 //
 // Reconnection: SSE clients auto-reconnect. Each event carries an `id:`
 // equal to the MongoDB _id string, so on reconnect the client sends
@@ -16,6 +23,10 @@
 // Note: SSE streams are long-lived connections. On serverless platforms
 // (Vercel) the function will time out after ~30 s. The browser's SSE
 // client reconnects automatically — just no live push during that gap.
+
+// Staleness thresholds (ms)
+const ESP32_TIMEOUT_MS = 60_000;   // 2× the 30 s heartbeat interval
+const MEGA_TIMEOUT_MS  = 10_000;   // 5× the 2 s sensor publish cycle
 
 import { getDb } from '~/lib/db.server';
 import { ObjectId } from 'mongodb';
@@ -72,6 +83,9 @@ export async function loader({ request }) {
         }
 
         try {
+          const now = Date.now();
+
+          // ── Activity log entries ───────────────────────────────────────────
           const query  = lastId ? { _id: { $gt: lastId } } : {};
           const entries = await db
             .collection('activity_logs')
@@ -97,9 +111,29 @@ export async function loader({ request }) {
             );
           }
 
+          // ── Device status ──────────────────────────────────────────────────
+          const [esp32Heartbeat, latestSensor] = await Promise.all([
+            db.collection('device_heartbeats').findOne({ source: 'esp32' }),
+            db.collection('sensor_readings').findOne({}, { sort: { timestamp: -1 }, projection: { timestamp: 1 } }),
+          ]);
+
+          const esp32LastSeen = esp32Heartbeat?.lastSeen ?? null;
+          const megaLastSeen  = latestSensor?.timestamp  ?? null;
+
+          enqueue('device-status', {
+            esp32: {
+              online:   esp32LastSeen ? (now - new Date(esp32LastSeen).getTime()) < ESP32_TIMEOUT_MS : false,
+              lastSeen: esp32LastSeen,
+            },
+            mega: {
+              online:   megaLastSeen ? (now - new Date(megaLastSeen).getTime()) < MEGA_TIMEOUT_MS : false,
+              lastSeen: megaLastSeen,
+            },
+          });
+
           // Keepalive ping when nothing new
           if (entries.length === 0) {
-            enqueue('ping', { ts: Date.now() });
+            enqueue('ping', { ts: now });
           }
         } catch {
           // Transient DB error — keep the interval running

@@ -3,45 +3,32 @@
  * Displays current conditions and 3-day forecast for Davao City.
  * Guest-visible — no auth required.
  * Data sourced from Open-Meteo (no API key).
+ * Icons: Meteocons fill SVGs from /weather-icons/*.svg
  */
 
 import { cn } from '~/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
-import { Badge } from '~/components/ui/badge';
+import { Tooltip, TooltipTrigger, TooltipContent } from '~/components/ui/tooltip';
 import {
-  Sun,
-  Cloud,
-  CloudSun,
-  CloudRain,
-  CloudDrizzle,
-  CloudLightning,
-  CloudFog,
-  CloudSnow,
   Wind,
   Droplets,
   Thermometer,
   MapPin,
   CloudOff,
+  CloudRain,
   ExternalLink,
 } from 'lucide-react';
 
-// ---------------------------------------------------------------------------
-// Icon resolver — matches icon names returned by weather.server.js
-// ---------------------------------------------------------------------------
-const ICON_MAP = {
-  Sun:            Sun,
-  CloudSun:       CloudSun,
-  Cloud:          Cloud,
-  CloudRain:      CloudRain,
-  CloudDrizzle:   CloudDrizzle,
-  CloudLightning: CloudLightning,
-  CloudFog:       CloudFog,
-  CloudSnow:      CloudSnow,
-};
-
-function WeatherIcon({ name, className }) {
-  const Icon = ICON_MAP[name] ?? Cloud;
-  return <Icon className={className} />;
+// Meteocons SVG served from /public/weather-icons/
+function WeatherIcon({ name, className, alt = '' }) {
+  return (
+    <img
+      src={`/weather-icons/${name}.svg`}
+      alt={alt}
+      className={cn('shrink-0', className)}
+      draggable={false}
+    />
+  );
 }
 
 // Rain-chance color
@@ -56,6 +43,16 @@ function dayLabel(dateStr, index) {
   if (index === 0) return 'Today';
   if (index === 1) return 'Tomorrow';
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-PH', { weekday: 'short' });
+}
+
+// Format "2026-04-13T05:30" → "5:30 AM"
+function formatTime(isoLocal) {
+  if (!isoLocal) return '';
+  const [, time] = isoLocal.split('T');
+  const [h, m]   = time.split(':').map(Number);
+  const period   = h >= 12 ? 'PM' : 'AM';
+  const hour     = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, '0')} ${period}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -118,7 +115,8 @@ export function WeatherWidget({ weather, className }) {
             <div className="flex items-center gap-3">
               <WeatherIcon
                 name={current.icon}
-                className="h-12 w-12 text-amber-400 dark:text-amber-300"
+                alt={current.label}
+                className="h-16 w-16"
               />
               <div>
                 <p className="text-4xl font-bold leading-none">{current.temp}°C</p>
@@ -127,24 +125,71 @@ export function WeatherWidget({ weather, className }) {
             </div>
 
             {/* Detail stats */}
-            <div className="space-y-1 text-right text-xs text-muted-foreground">
-              <p className="flex items-center justify-end gap-1">
-                <Thermometer className="h-3 w-3" />
-                Feels {current.feelsLike}°C
-              </p>
-              <p className="flex items-center justify-end gap-1">
-                <Droplets className="h-3 w-3" />
-                {current.humidity}% humidity
-              </p>
-              <p className="flex items-center justify-end gap-1">
-                <Wind className="h-3 w-3" />
-                {current.wind} km/h
-              </p>
+            <div className="space-y-1.5 text-right text-xs text-muted-foreground">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <p className="flex cursor-default items-center justify-end gap-1.5">
+                    <Thermometer className="h-3.5 w-3.5 shrink-0" />
+                    Feels {current.feelsLike}°C
+                  </p>
+                </TooltipTrigger>
+                <TooltipContent side="left">Apparent (feels-like) temperature</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <p className="flex cursor-default items-center justify-end gap-1.5">
+                    <Droplets className="h-3.5 w-3.5 shrink-0" />
+                    {current.humidity}% humidity
+                  </p>
+                </TooltipTrigger>
+                <TooltipContent side="left">Relative humidity</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <p className="flex cursor-default items-center justify-end gap-1.5">
+                    <Wind className="h-3.5 w-3.5 shrink-0" />
+                    {current.wind} km/h
+                  </p>
+                </TooltipTrigger>
+                <TooltipContent side="left">Wind speed at 10 m</TooltipContent>
+              </Tooltip>
+
+              {current.sunrise && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <p className="flex cursor-default items-center justify-end gap-1.5">
+                      <img src="/weather-icons/clear-day.svg" alt="" className="h-3.5 w-3.5 shrink-0" />
+                      {formatTime(current.sunrise)}
+                    </p>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">Sunrise</TooltipContent>
+                </Tooltip>
+              )}
+
+              {current.sunset && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <p className="flex cursor-default items-center justify-end gap-1.5">
+                      <img src="/weather-icons/clear-night.svg" alt="" className="h-3.5 w-3.5 shrink-0" />
+                      {formatTime(current.sunset)}
+                    </p>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">Sunset</TooltipContent>
+                </Tooltip>
+              )}
+
               {current.rainMm > 0 && (
-                <p className="flex items-center justify-end gap-1 text-blue-500 dark:text-blue-400">
-                  <CloudRain className="h-3 w-3" />
-                  {current.rainMm} mm now
-                </p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <p className="flex cursor-default items-center justify-end gap-1.5 text-blue-500 dark:text-blue-400">
+                      <CloudRain className="h-3.5 w-3.5 shrink-0" />
+                      {current.rainMm} mm now
+                    </p>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">Current precipitation</TooltipContent>
+                </Tooltip>
               )}
             </div>
           </div>
@@ -158,25 +203,29 @@ export function WeatherWidget({ weather, className }) {
           </div>
         )}
 
-        {/* Hourly forecast — next 6 hours */}
+        {/* Hourly forecast — next N hours */}
         {hourly.length > 0 && (
           <div className="border-t pt-3">
             <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
               Next {hourly.length} hours
             </p>
-            <div className="grid pb-1" style={{ gridTemplateColumns: `repeat(${hourly.length}, 1fr)` }}>
+            {/* sm–md: grid fills width. lg–xl: scroll (card too narrow for 12 cols). xl+: grid again. */}
+            <div
+              className="grid overflow-x-auto pb-1 scrollbar-none"
+              style={{ gridTemplateColumns: `repeat(${hourly.length}, minmax(3rem, 1fr))` }}
+            >
               {hourly.map((h) => {
-                const timeLabel = new Date(h.time + ':00+08:00').toLocaleTimeString('en-PH', {
-                  hour: 'numeric',
-                  hour12: true,
-                });
+                const d = new Date(h.time + ':00+08:00');
+                const hourLabel = d.toLocaleTimeString('en-PH', { hour: 'numeric', hour12: true });
+                const [num, period] = hourLabel.split(' ');
                 return (
                   <div
                     key={h.time}
-                    className="flex flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 text-center hover:bg-muted/50 min-w-0"
+                    className="flex flex-col items-center gap-0.5 rounded-lg px-2 py-1.5 text-center hover:bg-muted/50"
                   >
-                    <p className="text-[10px] text-muted-foreground">{timeLabel}</p>
-                    <WeatherIcon name={h.icon} className="h-4 w-4 text-amber-400 dark:text-amber-300" />
+                    <p className="text-[10px] leading-tight text-muted-foreground">{num}</p>
+                    <p className="text-[9px] leading-none text-muted-foreground/70">{period}</p>
+                    <WeatherIcon name={h.icon} alt={h.label} className="mt-0.5 h-8 w-8" />
                     <p className="text-xs font-semibold">{h.temp}°</p>
                     {h.rainChance != null && h.rainChance > 0 && (
                       <p className={cn('text-[9px] font-medium', rainColor(h.rainChance))}>
@@ -198,12 +247,10 @@ export function WeatherWidget({ weather, className }) {
                 <p className="text-[11px] font-medium text-muted-foreground">
                   {dayLabel(day.date, i)}
                 </p>
-                <WeatherIcon
-                  name={day.icon}
-                  className="h-5 w-5 text-amber-400 dark:text-amber-300"
-                />
+                <WeatherIcon name={day.icon} alt={day.label} className="h-9 w-9" />
                 <p className="text-xs font-semibold">
-                  {day.tempMax}° <span className="font-normal text-muted-foreground">{day.tempMin}°</span>
+                  {day.tempMax}°{' '}
+                  <span className="font-normal text-muted-foreground">{day.tempMin}°</span>
                 </p>
                 {day.rainChance != null && (
                   <p className={cn('text-[10px] font-medium', rainColor(day.rainChance))}>

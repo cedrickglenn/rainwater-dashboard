@@ -111,9 +111,14 @@ function ActivityLogItem({ log }) {
  * @param {boolean} props.showTitle - Whether to show the title
  * @param {string}  props.className - Additional CSS classes
  */
-export function ActivityLog({ logs = [], liveStatus, showTitle = true, className }) {
+export function ActivityLog({
+  logs = [],
+  liveStatus,
+  showTitle = true,
+  className,
+}) {
   return (
-    <Card className={cn('grow overflow-hidden', className)}>
+    <Card className={cn('flex flex-col overflow-hidden', className)}>
       {showTitle && (
         <CardHeader className="px-4 pb-3 pt-4 lg:px-6">
           <CardTitle className="flex items-center gap-2 text-lg">
@@ -137,7 +142,7 @@ export function ActivityLog({ logs = [], liveStatus, showTitle = true, className
         </CardHeader>
       )}
       <CardContent className="flex grow flex-col px-4 pb-4 pt-0 lg:px-6 lg:pb-6">
-        <ScrollArea className="h-[250px]">
+        <ScrollArea className="h-[250px] grow lg:h-[376px]">
           <div className="space-y-2 pr-3">
             {logs.length > 0 ? (
               logs.map((log) => <ActivityLogItem key={log.id} log={log} />)

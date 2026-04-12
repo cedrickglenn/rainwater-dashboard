@@ -329,7 +329,7 @@ export default function DashboardPage() {
         WEATHER + ACTIVITY SECTION
         Stacked on mobile, 2-column on desktop
       */}
-      <div className="grid gap-5 lg:grid-cols-2 min-w-0 overflow-hidden">
+      <div className="grid gap-5 lg:grid-cols-2 min-w-0 overflow-hidden lg:items-stretch">
         <section className="flex flex-col space-y-3 min-w-0">
           <h2 className="text-lg font-semibold">Weather</h2>
           <WeatherWidget weather={weather} className="flex-1" />
@@ -337,7 +337,7 @@ export default function DashboardPage() {
 
         <section className="flex flex-col space-y-3 min-w-0">
           <h2 className="text-lg font-semibold">Recent Activity</h2>
-          <ActivityLog logs={logs} liveStatus={liveStatus} />
+          <ActivityLog logs={logs} liveStatus={liveStatus} className="flex-1 lg:min-h-0" />
         </section>
       </div>
     </div>

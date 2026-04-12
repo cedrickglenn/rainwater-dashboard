@@ -18,22 +18,18 @@ import { Badge } from '~/components/ui/badge';
 import { Tooltip, TooltipTrigger, TooltipContent } from '~/components/ui/tooltip';
 import {
   Menu, Bell, Sun, Moon, Search, User, RefreshCw, LogIn, LogOut, ShieldCheck,
-  Cloud, CloudSun, CloudRain, CloudDrizzle, CloudLightning, CloudFog, Thermometer,
 } from 'lucide-react';
 
-// Minimal icon map for topbar weather indicator
-const WEATHER_ICONS = {
-  Sun,
-  CloudSun,
-  Cloud,
-  CloudRain,
-  CloudDrizzle,
-  CloudLightning,
-  CloudFog,
-};
+// Meteocons SVG from /public/weather-icons/
 function TopbarWeatherIcon({ name, className }) {
-  const Icon = WEATHER_ICONS[name] ?? Cloud;
-  return <Icon className={className} />;
+  return (
+    <img
+      src={`/weather-icons/${name}.svg`}
+      alt=""
+      className={cn('shrink-0', className)}
+      draggable={false}
+    />
+  );
 }
 
 /**
@@ -133,18 +129,33 @@ export function Topbar({
 
       {/* Right section - generous spacing between buttons */}
       <div className="flex items-center gap-1.5 sm:gap-2">
-        {/* Weather indicator - desktop only */}
+        {/* Weather indicator — mobile: icon + temp pill, desktop: full label */}
         {weather?.current && (
-          <div className="hidden items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm lg:flex">
-            <TopbarWeatherIcon
-              name={weather.current.icon}
-              className="h-4 w-4 text-amber-400 dark:text-amber-300"
-            />
-            <span className="font-medium">{weather.current.temp}°C</span>
-            <span className="hidden text-xs text-muted-foreground xl:block">
-              {weather.current.label}
-            </span>
-          </div>
+          <>
+            {/* Mobile pill: icon + temp, compact */}
+            <div className="flex items-center gap-1 rounded-full border bg-muted/60 px-2.5 py-1 lg:hidden">
+              <TopbarWeatherIcon
+                name={weather.current.icon}
+
+                className="h-[22px] w-[22px] shrink-0"
+              />
+              <span className="text-[13px] font-semibold tabular-nums leading-none">
+                {weather.current.temp}°
+              </span>
+            </div>
+            {/* Desktop: full pill with label */}
+            <div className="hidden items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm lg:flex">
+              <TopbarWeatherIcon
+                name={weather.current.icon}
+
+                className="h-5 w-5"
+              />
+              <span className="font-medium">{weather.current.temp}°C</span>
+              <span className="hidden text-xs text-muted-foreground xl:block">
+                {weather.current.label}
+              </span>
+            </div>
+          </>
         )}
 
         {/* Refresh button - hidden on mobile */}
