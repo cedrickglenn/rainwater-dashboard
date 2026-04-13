@@ -14,15 +14,26 @@
 import 'dotenv/config';
 import mqtt from 'mqtt';
 import { MongoClient } from 'mongodb';
+import webpush from 'web-push';
 
 const {
   HIVEMQ_HOST, HIVEMQ_USERNAME, HIVEMQ_PASSWORD,
   MONGODB_URI, DB_NAME = 'rainwateriot',
+  VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT,
 } = process.env;
 
 if (!HIVEMQ_HOST || !HIVEMQ_USERNAME || !HIVEMQ_PASSWORD || !MONGODB_URI) {
   console.error('Missing required env vars. Check .env');
   process.exit(1);
+}
+
+// Configure web-push VAPID — if keys are missing, push dispatch is skipped
+const pushEnabled = VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY && VAPID_SUBJECT;
+if (pushEnabled) {
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+  console.log('[push] VAPID configured — push dispatch enabled');
+} else {
+  console.warn('[push] VAPID env vars missing — push dispatch disabled');
 }
 
 // --- MongoDB ---
@@ -93,6 +104,64 @@ function parseLogFrame(raw) {
   return { source, level, category, message, raw: s, type: TYPE_MAP[level] ?? 'info', timestamp: new Date() };
 }
 
+// ---------------------------------------------------------------------------
+// Push notification dispatch
+// ---------------------------------------------------------------------------
+
+// Types that always warrant a push
+const PUSH_TYPES = new Set(['warning', 'error']);
+// Categories that warrant a push on 'success' type (process completions)
+const PUSH_SUCCESS_CATEGORIES = new Set(['ACTUATOR', 'PUMP', 'TANK', 'SYSTEM', 'FILTER']);
+
+function shouldPush(entry) {
+  if (PUSH_TYPES.has(entry.type)) return true;
+  if (entry.type === 'success' && PUSH_SUCCESS_CATEGORIES.has(entry.category)) return true;
+  return false;
+}
+
+async function dispatchPush(db, entry) {
+  if (!pushEnabled || !shouldPush(entry)) return;
+
+  const subscriptions = await db.collection('push_subscriptions').find({}).toArray();
+  if (subscriptions.length === 0) return;
+
+  const title = entry.type === 'error'   ? 'RainWater — Error'
+              : entry.type === 'warning' ? 'RainWater — Warning'
+              : 'RainWater — System';
+
+  const payload = JSON.stringify({
+    title,
+    body: entry.message,
+    icon: '/icons/icon.svg',
+    tag: `rainwater-${entry.type}`,
+    url: '/',
+  });
+
+  const staleEndpoints = [];
+  await Promise.allSettled(
+    subscriptions.map(async (sub) => {
+      try {
+        await webpush.sendNotification(
+          { endpoint: sub.endpoint, keys: sub.keys },
+          payload
+        );
+      } catch (err) {
+        // 410 Gone = subscription expired or user revoked permission
+        if (err.statusCode === 410) {
+          staleEndpoints.push(sub.endpoint);
+        } else {
+          console.error('[push] Send error:', err.message);
+        }
+      }
+    })
+  );
+
+  if (staleEndpoints.length > 0) {
+    await db.collection('push_subscriptions').deleteMany({ endpoint: { $in: staleEndpoints } });
+    console.log(`[push] Removed ${staleEndpoints.length} stale subscription(s)`);
+  }
+}
+
 mqttClient.on('message', async (topic, payload) => {
   const raw = payload.toString().trim();
   console.log(`[mqtt] ${topic}: ${raw}`);
@@ -150,6 +219,7 @@ mqttClient.on('message', async (topic, payload) => {
       const entry = parseLogFrame(raw);
       if (entry) {
         await db.collection('activity_logs').insertOne(entry);
+        await dispatchPush(db, entry);
       }
     }
 

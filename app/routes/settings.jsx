@@ -4,8 +4,8 @@
  */
 
 import { json } from '@remix-run/node';
-import { useLoaderData, useFetcher } from '@remix-run/react';
-import { useState } from 'react';
+import { useLoaderData, useFetcher, useRouteLoaderData } from '@remix-run/react';
+import { useState, useEffect, useCallback } from 'react';
 import { Input } from '~/components/ui/input';
 import { cn } from '~/lib/utils';
 import {
@@ -349,6 +349,140 @@ function ChangePassword() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Push notification helpers
+// ---------------------------------------------------------------------------
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+}
+
+/**
+ * Standalone push toggle that manages its own browser permission + SW subscription state.
+ * Reads vapidPublicKey from the root loader via useRouteLoaderData.
+ */
+function PushNotificationToggle() {
+  const root = useRouteLoaderData('root');
+  const vapidPublicKey = root?.vapidPublicKey ?? null;
+
+  // 'unsupported' | 'loading' | 'denied' | 'subscribed' | 'unsubscribed'
+  const [status, setStatus] = useState('loading');
+  const [busy, setBusy] = useState(false);
+
+  // On mount, check current SW subscription state
+  useEffect(() => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      setStatus('unsupported');
+      return;
+    }
+    if (Notification.permission === 'denied') {
+      setStatus('denied');
+      return;
+    }
+    navigator.serviceWorker.ready.then((reg) =>
+      reg.pushManager.getSubscription()
+    ).then((sub) => {
+      setStatus(sub ? 'subscribed' : 'unsubscribed');
+    }).catch(() => setStatus('unsubscribed'));
+  }, []);
+
+  const subscribe = useCallback(async () => {
+    if (!vapidPublicKey) return;
+    setBusy(true);
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') { setStatus('denied'); return; }
+
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+      });
+
+      const res = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sub.toJSON()),
+      });
+      if (res.ok) setStatus('subscribed');
+    } catch (err) {
+      console.error('[push] subscribe error:', err);
+    } finally {
+      setBusy(false);
+    }
+  }, [vapidPublicKey]);
+
+  const unsubscribe = useCallback(async () => {
+    setBusy(true);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await fetch('/api/push/subscribe', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: sub.endpoint }),
+        });
+        await sub.unsubscribe();
+      }
+      setStatus('unsubscribed');
+    } catch (err) {
+      console.error('[push] unsubscribe error:', err);
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  if (status === 'unsupported' || !vapidPublicKey) {
+    return (
+      <div className="flex items-center justify-between">
+        <div className="space-y-0.5">
+          <Label className="text-sm font-medium">Push Notifications</Label>
+          <p className="text-xs text-muted-foreground">Not supported in this browser</p>
+        </div>
+        <Switch disabled checked={false} />
+      </div>
+    );
+  }
+
+  if (status === 'denied') {
+    return (
+      <div className="flex items-center justify-between">
+        <div className="space-y-0.5">
+          <Label className="text-sm font-medium">Push Notifications</Label>
+          <p className="text-xs text-destructive">
+            Blocked by browser — reset permission in site settings to re-enable
+          </p>
+        </div>
+        <Switch disabled checked={false} />
+      </div>
+    );
+  }
+
+  const isSubscribed = status === 'subscribed';
+
+  return (
+    <div className="flex items-center justify-between">
+      <div className="space-y-0.5">
+        <Label className="text-sm font-medium">Push Notifications</Label>
+        <p className="text-xs text-muted-foreground">
+          {isSubscribed
+            ? 'Enabled on this device — alerts and warnings will be pushed'
+            : 'Receive warnings, errors, and process completions on this device'}
+        </p>
+      </div>
+      <Switch
+        checked={isSubscribed}
+        disabled={busy || status === 'loading'}
+        onCheckedChange={(checked) => (checked ? subscribe() : unsubscribe())}
+      />
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { settings, system } = useLoaderData();
   const fetcher = useFetcher();
@@ -547,15 +681,7 @@ export default function SettingsPage() {
               }
             />
             <Separator />
-            <SettingToggle
-              id="pushNotifications"
-              label="Push Notifications"
-              description="Browser push notifications"
-              checked={notifications.pushNotifications}
-              onCheckedChange={(checked) =>
-                handleNotificationChange('pushNotifications', checked)
-              }
-            />
+            <PushNotificationToggle />
             <Separator />
             <SettingToggle
               id="smsAlerts"

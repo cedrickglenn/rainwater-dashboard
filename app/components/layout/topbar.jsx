@@ -17,7 +17,7 @@ import { Button } from '~/components/ui/button';
 import { Badge } from '~/components/ui/badge';
 import { Tooltip, TooltipTrigger, TooltipContent } from '~/components/ui/tooltip';
 import {
-  Menu, Bell, Sun, Moon, Search, User, RefreshCw, LogIn, LogOut, ShieldCheck,
+  Menu, Bell, Sun, Moon, User, RefreshCw, LogIn, LogOut, ShieldCheck,
 } from 'lucide-react';
 
 // Meteocons SVG from /public/weather-icons/
@@ -112,19 +112,6 @@ export function Topbar({
           RainWater
         </span>
 
-        {/* Search (hidden on small screens) */}
-        <div className="hidden items-center gap-2 rounded-xl border bg-muted/50 px-3 py-2.5 sm:flex">
-          <Search className="h-5 w-5 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search..."
-            className="w-40 bg-transparent text-sm outline-none placeholder:text-muted-foreground lg:w-64"
-            aria-label="Search"
-          />
-          <kbd className="hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground lg:inline-flex">
-            <span className="text-xs">⌘</span>K
-          </kbd>
-        </div>
       </div>
 
       {/* Right section - generous spacing between buttons */}

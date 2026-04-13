@@ -38,6 +38,11 @@ export const meta = () => {
       content:
         'Monitor rainwater quality and potability in real-time with our smart harvesting system',
     },
+    { name: 'theme-color', content: '#0ea5e9' },
+    { name: 'mobile-web-app-capable', content: 'yes' },
+    { name: 'apple-mobile-web-app-capable', content: 'yes' },
+    { name: 'apple-mobile-web-app-status-bar-style', content: 'default' },
+    { name: 'apple-mobile-web-app-title', content: 'RainWater' },
   ];
 };
 
@@ -56,6 +61,7 @@ export const links = () => [
     href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
   },
   { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+  { rel: 'manifest', href: '/manifest.json' },
 ];
 
 /**
@@ -65,7 +71,12 @@ export const loader = async ({ request }) => {
   const { getUser } = await import('~/lib/auth.server');
   const unreadAlerts = alerts.filter((alert) => !alert.isRead).length;
   const [user, weather] = await Promise.all([getUser(request), getWeather()]);
-  return json({ alertCount: unreadAlerts, user, weather });
+  return json({
+    alertCount: unreadAlerts,
+    user,
+    weather,
+    vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? null,
+  });
 };
 
 /**
