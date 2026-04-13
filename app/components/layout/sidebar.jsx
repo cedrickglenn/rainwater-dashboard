@@ -121,7 +121,7 @@ function NavItem({ item, isCollapsed, onClick }) {
 /**
  * DeviceStatusDot — a single device row in the System Status panel.
  */
-function DeviceStatusDot({ label, online, lastSeen }) {
+function DeviceStatusDot({ label, online, lastSeen, loading }) {
   return (
     <div className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-2">
@@ -132,14 +132,14 @@ function DeviceStatusDot({ label, online, lastSeen }) {
           <span
             className={cn(
               'relative inline-flex h-2.5 w-2.5 rounded-full',
-              online ? 'bg-green-500' : 'bg-red-500'
+              loading ? 'bg-muted-foreground/40' : online ? 'bg-green-500' : 'bg-red-500'
             )}
           />
         </span>
         <span className="text-sm text-muted-foreground">{label}</span>
       </div>
-      <span className={cn('text-[11px]', online ? 'text-green-600 dark:text-green-400' : 'text-red-500')}>
-        {online ? 'Online' : lastSeen ? `${formatRelativeTime(lastSeen)}` : 'Offline'}
+      <span className={cn('text-[11px]', loading ? 'text-muted-foreground' : online ? 'text-green-600 dark:text-green-400' : 'text-red-500')}>
+        {loading ? 'Checking…' : online ? 'Online' : lastSeen ? `${formatRelativeTime(lastSeen)}` : 'Offline'}
       </span>
     </div>
   );
@@ -248,11 +248,13 @@ export function Sidebar({
                     label="ESP32"
                     online={deviceStatus.esp32.online}
                     lastSeen={deviceStatus.esp32.lastSeen}
+                    loading={deviceStatus.esp32.loading}
                   />
                   <DeviceStatusDot
                     label="Arduino MEGA"
                     online={deviceStatus.mega.online}
                     lastSeen={deviceStatus.mega.lastSeen}
+                    loading={deviceStatus.mega.loading}
                   />
                 </div>
               </div>

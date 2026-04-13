@@ -75,6 +75,35 @@ export async function loader({ request }) {
       // Initial ping so the client knows the stream is alive
       enqueue('ping', { ts: Date.now() });
 
+      // Send device status immediately on connect so the sidebar doesn't
+      // show "Offline" for the full 2-second polling interval before the
+      // first status event arrives.
+      const sendDeviceStatus = async () => {
+        try {
+          const now = Date.now();
+          const [esp32Heartbeat, latestSensor] = await Promise.all([
+            db.collection('device_heartbeats').findOne({ source: 'esp32' }),
+            db.collection('sensor_readings').findOne({}, { sort: { timestamp: -1 }, projection: { timestamp: 1 } }),
+          ]);
+          const esp32LastSeen = esp32Heartbeat?.lastSeen ?? null;
+          const megaLastSeen  = latestSensor?.timestamp  ?? null;
+          enqueue('device-status', {
+            esp32: {
+              online:   esp32LastSeen ? (now - new Date(esp32LastSeen).getTime()) < ESP32_TIMEOUT_MS : false,
+              lastSeen: esp32LastSeen,
+            },
+            mega: {
+              online:   megaLastSeen ? (now - new Date(megaLastSeen).getTime()) < MEGA_TIMEOUT_MS : false,
+              lastSeen: megaLastSeen,
+            },
+          });
+        } catch {
+          // Transient DB error — the interval will retry
+        }
+      };
+
+      await sendDeviceStatus();
+
       intervalId = setInterval(async () => {
         if (signal.aborted) {
           clearInterval(intervalId);
@@ -112,24 +141,7 @@ export async function loader({ request }) {
           }
 
           // ── Device status ──────────────────────────────────────────────────
-          const [esp32Heartbeat, latestSensor] = await Promise.all([
-            db.collection('device_heartbeats').findOne({ source: 'esp32' }),
-            db.collection('sensor_readings').findOne({}, { sort: { timestamp: -1 }, projection: { timestamp: 1 } }),
-          ]);
-
-          const esp32LastSeen = esp32Heartbeat?.lastSeen ?? null;
-          const megaLastSeen  = latestSensor?.timestamp  ?? null;
-
-          enqueue('device-status', {
-            esp32: {
-              online:   esp32LastSeen ? (now - new Date(esp32LastSeen).getTime()) < ESP32_TIMEOUT_MS : false,
-              lastSeen: esp32LastSeen,
-            },
-            mega: {
-              online:   megaLastSeen ? (now - new Date(megaLastSeen).getTime()) < MEGA_TIMEOUT_MS : false,
-              lastSeen: megaLastSeen,
-            },
-          });
+          await sendDeviceStatus();
 
           // Keepalive ping when nothing new
           if (entries.length === 0) {

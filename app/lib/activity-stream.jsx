@@ -25,8 +25,8 @@ import { toast } from '~/components/ui/toaster';
 const ActivityStreamContext = createContext(null);
 
 const INITIAL_DEVICE_STATUS = {
-  esp32: { online: false, lastSeen: null },
-  mega:  { online: false, lastSeen: null },
+  esp32: { online: false, lastSeen: null, loading: true },
+  mega:  { online: false, lastSeen: null, loading: true },
 };
 
 export function ActivityStreamProvider({ children }) {

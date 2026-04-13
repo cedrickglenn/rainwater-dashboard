@@ -208,9 +208,13 @@ function LogEntry({ log, isExpanded, onToggle }) {
             </Badge>
           </div>
 
-          {/* Raw frame — shown on expand */}
+          {/* Raw frame — shown on expand.
+               stopPropagation prevents clicking/selecting text from collapsing the card. */}
           {isExpanded && log.raw && (
-            <div className="mt-3 rounded-md bg-background/60 px-3 py-2 font-mono text-xs text-muted-foreground">
+            <div
+              className="mt-3 cursor-text select-text rounded-md bg-background/60 px-3 py-2 font-mono text-xs text-muted-foreground"
+              onClick={(e) => e.stopPropagation()}
+            >
               {log.raw}
             </div>
           )}
