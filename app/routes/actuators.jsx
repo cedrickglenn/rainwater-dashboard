@@ -233,7 +233,7 @@ export const loader = async ({ request }) => {
   await requireOperator(request);
 
   const { getDb } = await import('~/lib/db.server');
-  const db  = await getDb();
+  const db = await getDb();
   const docs = await db.collection('actuator_states').find({}).toArray();
 
   const now = Date.now();
@@ -267,7 +267,15 @@ async function persistStates(commands) {
     commands.map(({ type, id, state }) =>
       db.collection('actuator_states').updateOne(
         { actuatorId: id },
-        { $set: { actuatorId: id, type, state, confirmed: false, updatedAt: new Date() } },
+        {
+          $set: {
+            actuatorId: id,
+            type,
+            state,
+            confirmed: false,
+            updatedAt: new Date(),
+          },
+        },
         { upsert: true }
       )
     )
@@ -279,29 +287,31 @@ export const action = async ({ request }) => {
   await requireOperator(request);
 
   const formData = await request.formData();
-  const intent   = formData.get('intent');
+  const intent = formData.get('intent');
 
   const { mqttPublish } = await import('~/lib/hivemq.server');
 
-  let cmdLines  = [];
+  let cmdLines = [];
   let toPersist = [];
 
   if (intent === 'estop') {
-    cmdLines  = ['C,ESTOP,ON'];
+    cmdLines = ['C,ESTOP,ON'];
     // Mark every actuator OFF
     toPersist = [
       ...VALVES.map((v) => ({ type: 'VALVE', id: v.id, state: 'OFF' })),
-      ...PUMPS.map((p)  => ({ type: 'PUMP',  id: p.id, state: 'OFF' })),
+      ...PUMPS.map((p) => ({ type: 'PUMP', id: p.id, state: 'OFF' })),
     ];
   } else if (intent === 'quick_action') {
     const commands = JSON.parse(formData.get('commands'));
-    cmdLines  = commands.map(({ type, id, state }) => `C,${type},${id},${state}`);
+    cmdLines = commands.map(
+      ({ type, id, state }) => `C,${type},${id},${state}`
+    );
     toPersist = commands;
   } else {
-    const type  = formData.get('type');
-    const id    = formData.get('id');
+    const type = formData.get('type');
+    const id = formData.get('id');
     const state = formData.get('state');
-    cmdLines  = [`C,${type},${id},${state}`];
+    cmdLines = [`C,${type},${id},${state}`];
     toPersist = [{ type, id, state }];
   }
 
@@ -368,7 +378,15 @@ function ActuatorCard({ actuator, isOn, isValve, isConfirmed, onToggle }) {
                 : 'text-muted-foreground'
           )}
         >
-          {isPending ? 'PENDING' : isOn ? (isValve ? 'OPEN' : 'ON') : (isValve ? 'CLOSED' : 'OFF')}
+          {isPending
+            ? 'PENDING'
+            : isOn
+              ? isValve
+                ? 'OPEN'
+                : 'ON'
+              : isValve
+                ? 'CLOSED'
+                : 'OFF'}
         </Badge>
       </div>
 
@@ -416,7 +434,7 @@ function QuickActionCard({ action: qa, activeStates, onStart, onStop }) {
   return (
     <Card
       className={cn(
-        'transition-all',
+        'flex flex-col justify-between transition-all',
         isRunning && 'border-amber-400 dark:border-amber-600'
       )}
     >
@@ -497,15 +515,18 @@ function postCommands(body) {
 }
 
 export default function ActuatorsPage() {
-  const { persisted }  = useLoaderData();
-  const revalidator    = useRevalidator();
+  const { persisted } = useLoaderData();
+  const revalidator = useRevalidator();
 
   // on/off state — seeded from MongoDB, updated optimistically on click
   const [states, setStates] = useState(() =>
     Object.fromEntries(
-      Object.entries({ ...ALL_OFF_STATE, ...Object.fromEntries(
-        Object.entries(persisted).map(([id, v]) => [id, v.on])
-      )})
+      Object.entries({
+        ...ALL_OFF_STATE,
+        ...Object.fromEntries(
+          Object.entries(persisted).map(([id, v]) => [id, v.on])
+        ),
+      })
     )
   );
 
@@ -556,11 +577,16 @@ export default function ActuatorsPage() {
   // Mark actuators pending and start a client-side fallback timer so the UI
   // never stays stuck if an ACK is silently lost.
   const markPending = (ids) => {
-    setConfirmed((prev) => ({ ...prev, ...Object.fromEntries(ids.map((id) => [id, false])) }));
+    setConfirmed((prev) => ({
+      ...prev,
+      ...Object.fromEntries(ids.map((id) => [id, false])),
+    }));
     ids.forEach((id) => {
       clearTimeout(pendingTimersRef.current[id]);
       pendingTimersRef.current[id] = setTimeout(() => {
-        setConfirmed((prev) => (prev[id] === false ? { ...prev, [id]: true } : prev));
+        setConfirmed((prev) =>
+          prev[id] === false ? { ...prev, [id]: true } : prev
+        );
         delete pendingTimersRef.current[id];
       }, STALE_PENDING_MS);
     });
@@ -591,22 +617,32 @@ export default function ActuatorsPage() {
   const handleQuickStart = (qa) => {
     setStates((prev) => {
       const next = { ...prev };
-      qa.affects.forEach((id) => { next[id] = true; });
+      qa.affects.forEach((id) => {
+        next[id] = true;
+      });
       return next;
     });
     markPending(qa.affects);
-    postCommands({ intent: 'quick_action', commands: JSON.stringify(qa.startCmds) });
+    postCommands({
+      intent: 'quick_action',
+      commands: JSON.stringify(qa.startCmds),
+    });
   };
 
   // Quick action stop
   const handleQuickStop = (qa) => {
     setStates((prev) => {
       const next = { ...prev };
-      qa.affects.forEach((id) => { next[id] = false; });
+      qa.affects.forEach((id) => {
+        next[id] = false;
+      });
       return next;
     });
     markPending(qa.affects);
-    postCommands({ intent: 'quick_action', commands: JSON.stringify(qa.stopCmds) });
+    postCommands({
+      intent: 'quick_action',
+      commands: JSON.stringify(qa.stopCmds),
+    });
   };
 
   // Emergency stop
