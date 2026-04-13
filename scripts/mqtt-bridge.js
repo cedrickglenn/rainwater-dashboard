@@ -53,6 +53,10 @@ mqttClient.on('connect', () => {
     if (err) console.error('[mqtt] Subscribe error:', err.message);
     else     console.log('[mqtt] Subscribed to rainwater/logs');
   });
+  mqttClient.subscribe('rainwater/sensors', { qos: 0 }, (err) => {
+    if (err) console.error('[mqtt] Subscribe error:', err.message);
+    else     console.log('[mqtt] Subscribed to rainwater/sensors');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -142,6 +146,26 @@ mqttClient.on('message', async (topic, payload) => {
       const entry = parseLogFrame(raw);
       if (entry) {
         await db.collection('activity_logs').insertOne(entry);
+      }
+    }
+
+    if (topic === 'rainwater/sensors') {
+      // Throttle to one write per 2s — Mega sends every 2s anyway and we
+      // only need this for the MEGA online/offline liveness check in the SSE
+      // stream (MEGA_TIMEOUT_MS = 10s, so 2s cadence gives 5× margin).
+      const now = Date.now();
+      if (!global._lastSensorWrite || now - global._lastSensorWrite >= 2000) {
+        global._lastSensorWrite = now;
+        try {
+          const payload = JSON.parse(raw);
+          await db.collection('sensor_readings').insertOne({
+            timestamp: new Date(),
+            metadata:  { source: 'esp32' },
+            ...payload,
+          });
+        } catch {
+          // Malformed JSON — skip
+        }
       }
     }
   } catch (err) {

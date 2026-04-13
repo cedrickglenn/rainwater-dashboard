@@ -54,14 +54,14 @@ export function ActivityStreamProvider({ children }) {
       listenersRef.current.forEach((fn) => fn(entry));
 
       // Toast rules:
-      //  • warnings and errors   — always toast
+      //  • warnings and errors   — always toast; [MEGA] prefix stripped since
+      //    the toast context makes source clear.
       //  • ACTUATOR / PUMP INFO  — toast so the user gets immediate feedback
       //    that a valve/pump command executed (e.g. "V1 opened").
-      //    Strip the [MEGA] prefix since the toast context makes source clear.
       //  • everything else INFO  — silent (visible in activity log only)
       if (entry.type === 'warning' || entry.type === 'error') {
-        const prefix = entry.source ? `[${entry.source}] ` : '';
-        toast(`${prefix}${entry.message}`, { type: entry.type });
+        const msg = entry.message.replace(/^\[MEGA\]\s*/i, '');
+        toast(msg, { type: entry.type });
       } else if (
         entry.type === 'info' &&
         (entry.category === 'ACTUATOR' || entry.category === 'PUMP')
