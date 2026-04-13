@@ -122,25 +122,35 @@ function NavItem({ item, isCollapsed, onClick }) {
  * DeviceStatusDot — a single device row in the System Status panel.
  */
 function DeviceStatusDot({ label, online, lastSeen, loading }) {
+  const statusText = loading ? 'Checking…' : online ? 'Online' : lastSeen ? formatRelativeTime(lastSeen) : 'Offline';
+
   return (
-    <div className="flex items-center justify-between gap-2">
-      <div className="flex items-center gap-2">
-        <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
-          {online && (
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+    <div className="flex items-start gap-2">
+      {/* Dot — mt-1 aligns it with the first line of text */}
+      <span className="relative mt-1 flex h-2.5 w-2.5 flex-shrink-0">
+        {online && !loading && (
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+        )}
+        <span
+          className={cn(
+            'relative inline-flex h-2.5 w-2.5 rounded-full',
+            loading ? 'bg-muted-foreground/40' : online ? 'bg-green-500' : 'bg-red-500'
           )}
-          <span
-            className={cn(
-              'relative inline-flex h-2.5 w-2.5 rounded-full',
-              loading ? 'bg-muted-foreground/40' : online ? 'bg-green-500' : 'bg-red-500'
-            )}
-          />
-        </span>
-        <span className="text-sm text-muted-foreground">{label}</span>
-      </div>
-      <span className={cn('text-[11px]', loading ? 'text-muted-foreground' : online ? 'text-green-600 dark:text-green-400' : 'text-red-500')}>
-        {loading ? 'Checking…' : online ? 'Online' : lastSeen ? `${formatRelativeTime(lastSeen)}` : 'Offline'}
+        />
       </span>
+
+      {/* Label + status stacked — never compete for horizontal space */}
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <span className="text-sm leading-tight text-muted-foreground">{label}</span>
+        <span
+          className={cn(
+            'text-[11px] leading-tight',
+            loading ? 'text-muted-foreground' : online ? 'text-green-600 dark:text-green-400' : 'text-red-500'
+          )}
+        >
+          {statusText}
+        </span>
+      </div>
     </div>
   );
 }

@@ -57,6 +57,10 @@ mqttClient.on('connect', () => {
     if (err) console.error('[mqtt] Subscribe error:', err.message);
     else     console.log('[mqtt] Subscribed to rainwater/sensors');
   });
+  mqttClient.subscribe('rainwater/heartbeat', { qos: 0 }, (err) => {
+    if (err) console.error('[mqtt] Subscribe error:', err.message);
+    else     console.log('[mqtt] Subscribed to rainwater/heartbeat');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -146,6 +150,23 @@ mqttClient.on('message', async (topic, payload) => {
       const entry = parseLogFrame(raw);
       if (entry) {
         await db.collection('activity_logs').insertOne(entry);
+      }
+    }
+
+    if (topic === 'rainwater/heartbeat') {
+      // {"source":"esp32"} — upsert device_heartbeats, same as api.heartbeat.jsx did
+      try {
+        const { source } = JSON.parse(raw);
+        if (source) {
+          await db.collection('device_heartbeats').updateOne(
+            { source },
+            { $set: { source, lastSeen: new Date() } },
+            { upsert: true }
+          );
+          console.log(`[bridge] Heartbeat upserted for ${source}`);
+        }
+      } catch {
+        // Malformed payload — skip
       }
     }
 
