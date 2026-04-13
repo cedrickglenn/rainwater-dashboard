@@ -15,6 +15,7 @@ import { Outlet, useNavigation } from '@remix-run/react';
 import { cn } from '~/lib/utils';
 import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
+import { IOSInstallBanner } from './ios-install-banner';
 import { TooltipProvider } from '~/components/ui/tooltip';
 
 /**
@@ -123,7 +124,10 @@ export function DashboardLayout({ alertCount = 0, user = null, weather = null })
             weather={weather}
           />
 
-          {/* 
+          {/* iOS install prompt for push notifications */}
+          <IOSInstallBanner user={user} />
+
+          {/*
             Page content 
             MOBILE UX: 
             - Generous bottom padding (pb-24) prevents content from being

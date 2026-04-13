@@ -82,7 +82,7 @@ export function Topbar({
       )}
     >
       {/* Left section */}
-      <div className="flex items-center gap-2 sm:gap-3">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         {/* 
           Mobile menu toggle - HIDDEN on mobile since bottom nav provides navigation.
           Only visible on tablet (sm to lg) where bottom nav is still shown but
@@ -107,24 +107,26 @@ export function Topbar({
           <TooltipContent>Open navigation menu</TooltipContent>
         </Tooltip>
 
-        {/* App title on mobile */}
-        <span className="max-w-[160px] truncate text-base font-semibold sm:hidden">
+        {/* App title on mobile — links to home for UX */}
+        <Link
+          to="/"
+          className="truncate text-base font-semibold sm:hidden hover:opacity-75 transition-opacity"
+        >
           RainWater
-        </span>
+        </Link>
 
       </div>
 
       {/* Right section - generous spacing between buttons */}
-      <div className="flex items-center gap-1.5 sm:gap-2">
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
         {/* Weather indicator — mobile: icon + temp pill, desktop: full label */}
         {weather?.current && (
           <>
             {/* Mobile pill: icon + temp, compact */}
-            <div className="flex items-center gap-1 rounded-full border bg-muted/60 px-2.5 py-1 lg:hidden">
+            <div className="flex h-9 items-center gap-1 rounded-full border bg-muted/60 px-2.5 lg:hidden">
               <TopbarWeatherIcon
                 name={weather.current.icon}
-
-                className="h-[22px] w-[22px] shrink-0"
+                className="h-[22px] w-[22px] shrink-0 self-center"
               />
               <span className="text-[13px] font-semibold tabular-nums leading-none">
                 {weather.current.temp}°
