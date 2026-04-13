@@ -548,6 +548,10 @@ export default function ActuatorsPage() {
   // Rapid clicks update the UI immediately but only the final intended state is
   // actually transmitted to the hardware after CMD_DEBOUNCE_MS of inactivity.
   const cmdDebounceRef = useRef({});
+
+  // Quick action inhibit — prevents double-fire from rapid double-clicks.
+  // A quick action ID is added to this Set when fired; removed after 1 s.
+  const qaInhibitRef = useRef(new Set());
   // Sync confirmed status whenever loader data refreshes
   useEffect(() => {
     setConfirmed((prev) => {
@@ -615,6 +619,11 @@ export default function ActuatorsPage() {
 
   // Quick action start
   const handleQuickStart = (qa) => {
+    const key = `start:${qa.id}`;
+    if (qaInhibitRef.current.has(key)) return;
+    qaInhibitRef.current.add(key);
+    setTimeout(() => qaInhibitRef.current.delete(key), 1000);
+
     setStates((prev) => {
       const next = { ...prev };
       qa.affects.forEach((id) => {
@@ -631,6 +640,11 @@ export default function ActuatorsPage() {
 
   // Quick action stop
   const handleQuickStop = (qa) => {
+    const key = `stop:${qa.id}`;
+    if (qaInhibitRef.current.has(key)) return;
+    qaInhibitRef.current.add(key);
+    setTimeout(() => qaInhibitRef.current.delete(key), 1000);
+
     setStates((prev) => {
       const next = { ...prev };
       qa.affects.forEach((id) => {
