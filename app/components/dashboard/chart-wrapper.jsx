@@ -46,6 +46,16 @@ const CHART_COLORS = {
 };
 
 /**
+ * Per-container colours for the pipeline comparison chart.
+ * C2 = blue (raw), C5 = amber (after filter), C6 = green (final).
+ */
+const CONTAINER_COLORS = {
+  C2: '#3b82f6',  // blue-500
+  C5: '#f59e0b',  // amber-500
+  C6: '#22c55e',  // green-500
+};
+
+/**
  * Custom tooltip component
  */
 function CustomTooltip({ active, payload, label, labelFormatter }) {
@@ -225,6 +235,104 @@ export function SensorAreaChart({
               strokeWidth={2}
             />
           </AreaChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * ContainerLineChart Component
+ * Compares one sensor metric (e.g. pH) across C2, C5, and C6 over time.
+ * Visually shows how the value changes as water moves through the pipeline.
+ *
+ * @param {Object} props
+ * @param {string} props.title        - Card title
+ * @param {Array}  props.data         - Array of { timestamp, ph_c2, ph_c5, ph_c6, ... }
+ * @param {string} props.metric       - Field prefix to plot, e.g. 'ph' → plots ph_c2, ph_c5, ph_c6
+ * @param {string} props.unit         - Unit label shown in tooltip
+ * @param {number} props.height
+ * @param {string} props.className
+ */
+export function ContainerLineChart({
+  title,
+  data,
+  metric = 'ph',
+  unit   = '',
+  height = 260,
+  showGrid = true,
+  className,
+}) {
+  const lines = [
+    { key: `${metric}_c2`, label: 'C2 Raw',    color: CONTAINER_COLORS.C2 },
+    { key: `${metric}_c5`, label: 'C5 Filter', color: CONTAINER_COLORS.C5 },
+    { key: `${metric}_c6`, label: 'C6 Final',  color: CONTAINER_COLORS.C6 },
+  ];
+
+  return (
+    <Card className={cn('', className)}>
+      {title && (
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg">{title}</CardTitle>
+        </CardHeader>
+      )}
+      <CardContent className={cn(title ? 'pb-4' : 'pt-6 pb-4')}>
+        <ResponsiveContainer width="100%" height={height}>
+          <LineChart
+            data={data}
+            margin={{ top: 5, right: 10, left: 0, bottom: 20 }}
+          >
+            {showGrid && (
+              <CartesianGrid
+                strokeDasharray="3 3"
+                className="stroke-muted"
+                vertical={false}
+              />
+            )}
+            <XAxis
+              dataKey="timestamp"
+              tickFormatter={(value) => formatChartLabel(value, 'hour')}
+              className="text-xs"
+              tick={{ fill: 'hsl(var(--muted-foreground))' }}
+              axisLine={{ stroke: 'hsl(var(--border))' }}
+              tickLine={false}
+              interval="preserveStartEnd"
+            />
+            <YAxis
+              className="text-xs"
+              tick={{ fill: 'hsl(var(--muted-foreground))' }}
+              axisLine={false}
+              tickLine={false}
+              width={40}
+            />
+            <Tooltip
+              content={
+                <CustomTooltip
+                  labelFormatter={(value) => formatChartLabel(value, 'hour')}
+                />
+              }
+            />
+            <Legend
+              verticalAlign="top"
+              height={28}
+              formatter={(value) =>
+                lines.find((l) => l.key === value)?.label ?? value
+              }
+            />
+            {lines.map((line) => (
+              <Line
+                key={line.key}
+                type="monotone"
+                dataKey={line.key}
+                name={line.key}
+                stroke={line.color}
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4, fill: line.color }}
+                connectNulls
+              />
+            ))}
+          </LineChart>
         </ResponsiveContainer>
       </CardContent>
     </Card>

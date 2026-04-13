@@ -154,6 +154,7 @@ export function getSensorStatus(sensorType, value) {
 export function calculateWaterQuality(sensorData) {
   const statuses = {};
   let overallStatus = WATER_STATUS.SAFE;
+  let knownCount = 0;
 
   // Check each sensor — skip null values (sensor not present)
   for (const [sensor, value] of Object.entries(sensorData)) {
@@ -161,7 +162,10 @@ export function calculateWaterQuality(sensorData) {
       const status = getSensorStatus(sensor, value);
       statuses[sensor] = status;
 
-      // Upgrade overall status if worse (unknown does not affect overall)
+      if (status === WATER_STATUS.UNKNOWN) continue;
+      knownCount++;
+
+      // Upgrade overall status if worse
       if (status === WATER_STATUS.UNSAFE) {
         overallStatus = WATER_STATUS.UNSAFE;
       } else if (
@@ -172,6 +176,10 @@ export function calculateWaterQuality(sensorData) {
       }
     }
   }
+
+  // If no sensor has returned a real reading, the overall status is unknown —
+  // never claim potable when there is no data to back it up.
+  if (knownCount === 0) overallStatus = WATER_STATUS.UNKNOWN;
 
   return {
     overall: overallStatus,

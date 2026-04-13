@@ -13,16 +13,17 @@
 import { cn } from '~/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 import { Badge } from '~/components/ui/badge';
-import { ShieldCheck, ShieldAlert, ShieldX, Droplets } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, ShieldX, ShieldQuestion, Droplets } from 'lucide-react';
 import { WATER_STATUS, STATUS_CONFIG } from '~/lib/water-quality';
 
 /**
  * Status icons mapping
  */
 const STATUS_ICONS = {
-  [WATER_STATUS.SAFE]: ShieldCheck,
+  [WATER_STATUS.SAFE]:    ShieldCheck,
   [WATER_STATUS.WARNING]: ShieldAlert,
-  [WATER_STATUS.UNSAFE]: ShieldX,
+  [WATER_STATUS.UNSAFE]:  ShieldX,
+  [WATER_STATUS.UNKNOWN]: ShieldQuestion,
 };
 
 /**
@@ -35,15 +36,38 @@ const STATUS_BG = {
     'bg-amber-100 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800',
   [WATER_STATUS.UNSAFE]:
     'bg-red-100 dark:bg-red-900/30 border-red-200 dark:border-red-800',
+  [WATER_STATUS.UNKNOWN]:
+    'bg-muted/40 border-border',
 };
 
 /**
  * Icon colors
  */
 const ICON_COLORS = {
-  [WATER_STATUS.SAFE]: 'text-green-600 dark:text-green-400',
+  [WATER_STATUS.SAFE]:    'text-green-600 dark:text-green-400',
   [WATER_STATUS.WARNING]: 'text-amber-600 dark:text-amber-400',
-  [WATER_STATUS.UNSAFE]: 'text-red-600 dark:text-red-400',
+  [WATER_STATUS.UNSAFE]:  'text-red-600 dark:text-red-400',
+  [WATER_STATUS.UNKNOWN]: 'text-muted-foreground',
+};
+
+/**
+ * Human-readable headline per status
+ */
+const STATUS_HEADLINE = {
+  [WATER_STATUS.SAFE]:    'Water is Potable',
+  [WATER_STATUS.WARNING]: 'Caution Advised',
+  [WATER_STATUS.UNSAFE]:  'Not Safe to Drink',
+  [WATER_STATUS.UNKNOWN]: 'Awaiting Sensor Data',
+};
+
+/**
+ * Sub-text per status
+ */
+const STATUS_SUBTEXT = {
+  [WATER_STATUS.SAFE]:    'All parameters within safe limits',
+  [WATER_STATUS.WARNING]: 'Some parameters need attention',
+  [WATER_STATUS.UNSAFE]:  'One or more parameters exceed safe limits',
+  [WATER_STATUS.UNKNOWN]: 'No live readings yet — connect the hardware to get a reading',
 };
 
 /**
@@ -55,13 +79,14 @@ const ICON_COLORS = {
  * @param {string} props.className - Additional CSS classes
  */
 export function WaterQualityStatus({
-  status = WATER_STATUS.SAFE,
-  score = 100,
+  status = WATER_STATUS.UNKNOWN,
   lastChecked,
   className,
 }) {
-  const StatusIcon = STATUS_ICONS[status];
-  const statusConfig = STATUS_CONFIG[status];
+  const resolvedStatus = STATUS_ICONS[status] ? status : WATER_STATUS.UNKNOWN;
+  const StatusIcon  = STATUS_ICONS[resolvedStatus];
+  const statusConfig = STATUS_CONFIG[resolvedStatus];
+  const status_ = resolvedStatus; // alias for readability below
 
   return (
     <Card className={cn('overflow-hidden', className)}>
@@ -77,22 +102,20 @@ export function WaterQualityStatus({
         <div
           className={cn(
             'flex flex-col items-center justify-center rounded-xl border-2 transition-all',
-            // Generous padding for mobile readability
             'p-4 sm:p-6 lg:p-8',
-            STATUS_BG[status]
+            STATUS_BG[status_]
           )}
         >
-          {/* Animated status icon - larger for mobile visibility */}
+          {/* Status icon */}
           <div className="relative">
             <StatusIcon
               className={cn(
-                // Large icon sizes: 72px mobile, 80px tablet, 96px desktop
                 'h-[72px] w-[72px] sm:h-20 sm:w-20 lg:h-24 lg:w-24',
-                ICON_COLORS[status]
+                ICON_COLORS[status_]
               )}
             />
-            {/* Pulse animation for safe status */}
-            {status === WATER_STATUS.SAFE && (
+            {/* Pulse animation only when confirmed safe */}
+            {status_ === WATER_STATUS.SAFE && (
               <span className="absolute -right-1 -top-1 flex h-5 w-5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
                 <span className="relative inline-flex h-5 w-5 rounded-full bg-green-500"></span>
@@ -100,47 +123,32 @@ export function WaterQualityStatus({
             )}
           </div>
 
-          {/* Status text - clear and prominent */}
+          {/* Status text */}
           <div className="mt-4 text-center sm:mt-5">
             <h3
               className={cn(
-                // Larger text on mobile for immediate readability
                 'text-xl font-bold sm:text-2xl lg:text-3xl',
-                ICON_COLORS[status]
+                ICON_COLORS[status_]
               )}
             >
-              {status === WATER_STATUS.SAFE
-                ? 'Water is Potable'
-                : status === WATER_STATUS.WARNING
-                  ? 'Caution Advised'
-                  : 'Not Safe to Drink'}
+              {STATUS_HEADLINE[status_]}
             </h3>
             <p className="mx-auto mt-2 max-w-xs text-sm text-muted-foreground sm:text-base">
-              {status === WATER_STATUS.SAFE
-                ? 'All parameters within safe limits'
-                : status === WATER_STATUS.WARNING
-                  ? 'Some parameters need attention'
-                  : 'One or more parameters exceed safe limits'}
+              {STATUS_SUBTEXT[status_]}
             </p>
           </div>
 
-          {/* Potability score and badge - touch-friendly layout */}
-          <div className="mt-5 flex flex-col items-center gap-4 sm:mt-6 sm:flex-row">
-            {/* Large, tappable badge */}
-            <Badge
-              variant={status}
-              className="px-4 py-1.5 text-sm font-medium sm:text-base"
-            >
-              {statusConfig.label}
-            </Badge>
-            {/* Score display - prominent numbers */}
-            <div className="text-center">
-              <span className="text-3xl font-bold sm:text-4xl">{score}%</span>
-              <p className="text-xs text-muted-foreground sm:text-sm">
-                Potability Score
-              </p>
+          {/* Status badge — omit for unknown since "No Data" badge adds no value */}
+          {status_ !== WATER_STATUS.UNKNOWN && (
+            <div className="mt-5 flex flex-col items-center gap-4 sm:mt-6 sm:flex-row">
+              <Badge
+                variant={status_}
+                className="px-4 py-1.5 text-sm font-medium sm:text-base"
+              >
+                {statusConfig.label}
+              </Badge>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Last checked timestamp - adequate size for mobile */}
