@@ -10,7 +10,7 @@
 
 import { json } from '@remix-run/node';
 import { useLoaderData, useRevalidator } from '@remix-run/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { cn } from '~/lib/utils';
 import {
   Card,
@@ -220,6 +220,14 @@ export const meta = () => [
 // Remix loader — reads persisted actuator state from MongoDB
 // ---------------------------------------------------------------------------
 
+// Pending states older than this are considered stale (ACK was lost) and
+// auto-resolved so the UI never gets stuck showing PENDING indefinitely.
+const STALE_PENDING_MS = 5000;
+
+// Rapid clicks update the UI instantly but only the final state is transmitted
+// after this settle window, collapsing ON→OFF→ON into a single command.
+const CMD_DEBOUNCE_MS = 150;
+
 export const loader = async ({ request }) => {
   const { requireOperator } = await import('~/lib/auth.server');
   await requireOperator(request);
@@ -228,9 +236,20 @@ export const loader = async ({ request }) => {
   const db  = await getDb();
   const docs = await db.collection('actuator_states').find({}).toArray();
 
+  const now = Date.now();
+
   // { V1: { on: true, confirmed: false }, ... }
+  // Auto-expire any pending state whose command was sent >STALE_PENDING_MS ago —
+  // this covers the case where the ACK path was down and confirmed was never flipped.
   const persisted = Object.fromEntries(
-    docs.map((d) => [d.actuatorId, { on: d.state === 'ON', confirmed: d.confirmed ?? true }])
+    docs.map((d) => {
+      const isStale =
+        !d.confirmed &&
+        d.updatedAt &&
+        now - new Date(d.updatedAt).getTime() > STALE_PENDING_MS;
+      const confirmed = isStale ? true : (d.confirmed ?? true);
+      return [d.actuatorId, { on: d.state === 'ON', confirmed }];
+    })
   );
 
   return json({ persisted });
@@ -468,8 +487,9 @@ function QuickActionCard({ action: qa, activeStates, onStart, onStop }) {
 // Page
 // ---------------------------------------------------------------------------
 
-// Fire-and-forget POST to the Remix action. Each call is independent —
-// no request cancels another, so rapid clicks all reach the server.
+// Fire-and-forget POST to the Remix action.
+// Individual toggles are debounced before calling this, so only the settled
+// final state reaches the server. Quick-action and E-stop calls are direct.
 function postCommands(body) {
   const fd = new FormData();
   for (const [k, v] of Object.entries(body)) fd.append(k, v);
@@ -499,36 +519,72 @@ export default function ActuatorsPage() {
     )
   );
 
+  // Per-actuator safety timers — auto-clear pending after STALE_PENDING_MS if
+  // the server-side loader hasn't resolved it yet (belt-and-suspenders).
+  const pendingTimersRef = useRef({});
+
+  // Per-actuator command debounce timers.
+  // Rapid clicks update the UI immediately but only the final intended state is
+  // actually transmitted to the hardware after CMD_DEBOUNCE_MS of inactivity.
+  const cmdDebounceRef = useRef({});
   // Sync confirmed status whenever loader data refreshes
   useEffect(() => {
     setConfirmed((prev) => {
       const next = { ...prev };
       for (const [id, v] of Object.entries(persisted)) {
+        // If server says confirmed, also cancel the client-side fallback timer
+        if (v.confirmed && pendingTimersRef.current[id]) {
+          clearTimeout(pendingTimersRef.current[id]);
+          delete pendingTimersRef.current[id];
+        }
         next[id] = v.confirmed;
       }
       return next;
     });
   }, [persisted]);
 
-  // Poll every 2s while any actuator is unconfirmed
+  // Poll every 500ms while any actuator is unconfirmed (was 2 s — too slow)
   const anyPending = Object.values(confirmed).some((c) => !c);
   useEffect(() => {
     if (!anyPending) return;
-    const id = setInterval(() => revalidator.revalidate(), 2000);
+    const id = setInterval(() => revalidator.revalidate(), 500);
     return () => clearInterval(id);
   }, [anyPending, revalidator]);
 
   const anyOn = Object.values(states).some(Boolean);
 
-  const markPending = (ids) =>
+  // Mark actuators pending and start a client-side fallback timer so the UI
+  // never stays stuck if an ACK is silently lost.
+  const markPending = (ids) => {
     setConfirmed((prev) => ({ ...prev, ...Object.fromEntries(ids.map((id) => [id, false])) }));
+    ids.forEach((id) => {
+      clearTimeout(pendingTimersRef.current[id]);
+      pendingTimersRef.current[id] = setTimeout(() => {
+        setConfirmed((prev) => (prev[id] === false ? { ...prev, [id]: true } : prev));
+        delete pendingTimersRef.current[id];
+      }, STALE_PENDING_MS);
+    });
+  };
 
-  // Single actuator toggle — UI updates instantly, POST fires immediately
+  // Single actuator toggle — UI updates instantly but the MQTT command is
+  // debounced: only the final state after CMD_DEBOUNCE_MS of inactivity is sent.
+  // This means rapid ON→OFF toggling collapses to a single command, eliminating
+  // competing in-flight commands and ACK races on the hardware side.
   const handleToggle = (type, id, currentlyOn) => {
     const newState = currentlyOn ? 'OFF' : 'ON';
+
+    // Immediate optimistic UI update (no waiting)
     setStates((prev) => ({ ...prev, [id]: newState === 'ON' }));
-    markPending([id]);
-    postCommands({ type, id, state: newState });
+
+    // Cancel any pending debounce for this actuator — new click supersedes it
+    clearTimeout(cmdDebounceRef.current[id]);
+
+    // Schedule the actual command send; captures the latest newState in closure
+    cmdDebounceRef.current[id] = setTimeout(() => {
+      delete cmdDebounceRef.current[id];
+      markPending([id]);
+      postCommands({ type, id, state: newState });
+    }, CMD_DEBOUNCE_MS);
   };
 
   // Quick action start

@@ -1,5 +1,14 @@
 // Resource route: /api/acks
-// POST — ESP32 posts an ACK received from the Mega for VALVE/PUMP commands
+//
+// NOTE: The ESP32 firmware no longer HTTP-POSTs ACKs here directly.
+// ACKs now flow exclusively via MQTT (rainwater/acks) → mqtt-bridge.js → MongoDB,
+// which is the single writer for actuator_states.confirmed.
+//
+// This route is kept as a manual fallback (e.g. curl debugging) but is not
+// called in normal operation. Do not add logic here that assumes it receives
+// every ACK — use the MQTT bridge for reliable ACK processing.
+//
+// Original intent: POST — ESP32 posts an ACK from the Mega for VALVE/PUMP commands
 // Body (JSON): { raw: "A,VALVE,V1,OK" }
 
 import { json } from '@remix-run/node';
