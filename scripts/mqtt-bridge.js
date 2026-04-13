@@ -49,7 +49,41 @@ mqttClient.on('connect', () => {
     if (err) console.error('[mqtt] Subscribe error:', err.message);
     else     console.log('[mqtt] Subscribed to rainwater/acks');
   });
+  mqttClient.subscribe('rainwater/logs', { qos: 0 }, (err) => {
+    if (err) console.error('[mqtt] Subscribe error:', err.message);
+    else     console.log('[mqtt] Subscribed to rainwater/logs');
+  });
 });
+
+// ---------------------------------------------------------------------------
+// Log frame parser — mirrors api.activity.jsx parseLogFrame
+// Format A (Mega):  L,<SOURCE>,<LEVEL>,<MESSAGE>
+// Format B (ESP32): L,<LEVEL>,<CATEGORY>,<MESSAGE>
+// ---------------------------------------------------------------------------
+const LEVEL_TOKENS = new Set(['INFO', 'WARN', 'ERR', 'OK']);
+const TYPE_MAP     = { INFO: 'info', WARN: 'warning', ERR: 'error', OK: 'success' };
+
+function parseLogFrame(raw) {
+  const s = raw.trim();
+  if (!s.startsWith('L,')) return null;
+  const parts = s.split(',');
+  if (parts.length < 4) return null;
+
+  let source, level, category, message;
+  if (LEVEL_TOKENS.has(parts[1])) {
+    level    = parts[1];
+    category = parts[2];
+    message  = parts.slice(3).join(',');
+    source   = category;
+  } else {
+    source   = parts[1];
+    level    = parts[2];
+    message  = parts.slice(3).join(',');
+    category = source;
+  }
+
+  return { source, level, category, message, raw: s, type: TYPE_MAP[level] ?? 'info', timestamp: new Date() };
+}
 
 mqttClient.on('message', async (topic, payload) => {
   const raw = payload.toString().trim();
@@ -102,6 +136,12 @@ mqttClient.on('message', async (topic, payload) => {
             );
           }
         }
+      }
+    }
+    if (topic === 'rainwater/logs') {
+      const entry = parseLogFrame(raw);
+      if (entry) {
+        await db.collection('activity_logs').insertOne(entry);
       }
     }
   } catch (err) {
