@@ -193,6 +193,7 @@ function LiveReading({
   rawKey = null,
   rawUnit = null,
   rawDecimals = 1,
+  rawTransform = null,
 }) {
   const [calValue, setCalValue] = useState(null);
   const [rawValue, setRawValue] = useState(null);
@@ -212,7 +213,8 @@ function LiveReading({
         setCalValue(cal != null ? Number(cal).toFixed(decimals) : null);
         if (rawKey) {
           const raw = data[rawKey];
-          setRawValue(raw != null ? Number(raw).toFixed(rawDecimals) : null);
+          const transformed = raw != null ? (rawTransform ? rawTransform(Number(raw)) : Number(raw)) : null;
+          setRawValue(transformed != null ? transformed.toFixed(rawDecimals) : null);
         }
         setFlash(true);
         clearTimeout(flashTimer.current);
@@ -229,7 +231,7 @@ function LiveReading({
       clearInterval(id);
       clearTimeout(flashTimer.current);
     };
-  }, [sensorKey, decimals, rawKey, rawDecimals]);
+  }, [sensorKey, decimals, rawKey, rawDecimals, rawTransform]);
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border bg-muted/30 px-3 py-2">
@@ -411,8 +413,9 @@ function TurbidityTab() {
         unit="NTU"
         decimals={1}
         rawKey={`RAW_TURB_V_${container}`}
-        rawUnit="V"
-        rawDecimals={3}
+        rawUnit="mV"
+        rawDecimals={0}
+        rawTransform={(v) => v * 1000}
       />
 
       <Separator />

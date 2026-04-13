@@ -26,7 +26,7 @@
 
 // Staleness thresholds (ms)
 const ESP32_TIMEOUT_MS = 60_000;   // 2× the 30 s heartbeat interval
-const MEGA_TIMEOUT_MS  = 10_000;   // 5× the 2 s sensor publish cycle
+const MEGA_TIMEOUT_MS  = 30_000;   // 15× the 2 s sensor publish cycle (accounts for MQTT reconnect up to 5 s + bridge throttle)
 
 import { getDb } from '~/lib/db.server';
 import { ObjectId } from 'mongodb';
