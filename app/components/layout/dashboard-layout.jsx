@@ -15,7 +15,6 @@ import { Outlet, useNavigation } from '@remix-run/react';
 import { cn } from '~/lib/utils';
 import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
-import { MobileNav } from './mobile-nav';
 import { TooltipProvider } from '~/components/ui/tooltip';
 
 /**
@@ -136,12 +135,9 @@ export function DashboardLayout({ alertCount = 0, user = null, weather = null })
             className={cn(
               'flex-1 min-w-0 overflow-x-hidden transition-opacity duration-200',
               isNavigating && 'opacity-60 pointer-events-none',
-              // Mobile: compact horizontal padding, generous bottom for nav
-              'px-4 py-4 pb-24',
-              // Tablet: slightly more padding
-              'sm:px-5 sm:py-5 sm:pb-28',
-              // Desktop: full padding, no extra bottom (no bottom nav)
-              'lg:px-8 lg:py-6 lg:pb-6'
+              'px-4 py-4',
+              'sm:px-5 sm:py-5',
+              'lg:px-8 lg:py-6'
             )}
           >
             <Outlet />
@@ -159,14 +155,6 @@ export function DashboardLayout({ alertCount = 0, user = null, weather = null })
           </footer>
         </div>
 
-        {/* 
-          Mobile Bottom Navigation
-          MOBILE UX: Fixed at bottom within thumb's natural arc
-          - Large touch targets (48px+)
-          - Always visible for quick navigation
-          - Hidden on desktop where sidebar handles navigation
-        */}
-        <MobileNav user={user} />
       </div>
     </TooltipProvider>
   );

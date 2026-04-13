@@ -1,79 +1,87 @@
 /**
- * MobileNav Component
- * Bottom navigation bar for mobile devices
+ * MobileNav — expanding-pill bottom navigation.
  *
- * MOBILE UX IMPROVEMENTS:
- * - Fixed bottom position in thumb's natural reach zone
- * - Touch targets: 56px height for comfortable tapping
- * - Icons: 24px with visual feedback on tap
- * - Labels: 12px (up from 10px) for readability
- * - Safe area padding for notched devices (iPhone X+)
- * - Backdrop blur for modern appearance
+ * Active item: icon + label inside a rounded pill (bg-primary/10).
+ * Inactive items: icon-only compact circles.
+ *
+ * This pattern fits any number of items without scrolling or shrinking
+ * touch targets, because only the one active item expands — all others
+ * stay at a fixed small width.
+ *
+ * Role filtering: items with minRole are hidden unless the user meets
+ * the threshold (viewer < operator < admin).
  */
 
-import { NavLink } from '@remix-run/react';
+import { NavLink, useLocation } from '@remix-run/react';
 import { cn } from '~/lib/utils';
-import { LayoutDashboard, Gauge, History, Settings, Wrench } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Gauge,
+  History,
+  Settings,
+  Wrench,
+  SlidersHorizontal,
+} from 'lucide-react';
 
 const NAV_ITEMS = [
-  { name: 'Home',     href: '/',          icon: LayoutDashboard, minRole: null       },
-  { name: 'Sensors',  href: '/sensors',   icon: Gauge,           minRole: null       },
-  { name: 'History',  href: '/history',   icon: History,         minRole: null       },
-  { name: 'Controls', href: '/actuators', icon: Wrench,          minRole: 'operator' },
-  { name: 'Settings', href: '/settings',  icon: Settings,        minRole: 'admin'    },
+  { name: 'Home',      href: '/',            icon: LayoutDashboard,   minRole: null       },
+  { name: 'Sensors',   href: '/sensors',     icon: Gauge,             minRole: null       },
+  { name: 'History',   href: '/history',     icon: History,           minRole: null       },
+  { name: 'Controls',  href: '/actuators',   icon: Wrench,            minRole: 'operator' },
+  { name: 'Calibrate', href: '/calibration', icon: SlidersHorizontal, minRole: 'admin'    },
+  { name: 'Settings',  href: '/settings',    icon: Settings,          minRole: 'admin'    },
 ];
 
-/**
- * MobileNavItem Component
- * Individual navigation button with generous touch target
- */
-function MobileNavItem({ item }) {
+const ROLE_LEVEL = { admin: 3, operator: 2, viewer: 1 };
+
+function MobileNavItem({ item, isActive }) {
   const Icon = item.icon;
 
   return (
     <NavLink
       to={item.href}
-      className={({ isActive }) =>
-        cn(
-          // BASE: 56px height for comfortable touch (exceeds 48px minimum)
-          'flex flex-col items-center justify-center gap-1.5',
-          // Fixed width per item to prevent overflow (4 items = ~25% each with some margin)
-          'min-h-[56px] w-[22%] max-w-[80px] py-2',
-          'rounded-xl transition-all duration-200',
-          'touch-action-manipulation',
-          // Active state - clear visual distinction
-          isActive
-            ? 'bg-primary/10 text-primary'
-            : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
-          // Touch feedback
-          'active:scale-95 active:bg-muted',
-          // Focus state for accessibility
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
-        )
-      }
+      aria-current={isActive ? 'page' : undefined}
+      className={cn(
+        // shared
+        'flex flex-shrink-0 items-center justify-center',
+        'h-11 transition-all duration-300 ease-out',
+        'touch-action-manipulation',
+        'active:scale-95',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+        // active: pill with label
+        isActive
+          ? 'gap-2 rounded-full bg-primary/10 px-4 text-primary'
+          : 'w-11 rounded-full text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+      )}
     >
-      {/* Icon - 24px for clear visibility */}
-      <Icon className="h-6 w-6" />
-      {/* Label - 12px for readability (up from 10px) */}
-      <span className="text-xs font-medium leading-none">{item.name}</span>
+      <Icon className="h-5 w-5 flex-shrink-0" />
+      {isActive && (
+        <span className="whitespace-nowrap text-xs font-semibold leading-none">
+          {item.name}
+        </span>
+      )}
     </NavLink>
   );
 }
 
-/**
- * MobileNav Component
- * Fixed bottom navigation bar for mobile devices
- */
 export function MobileNav({ user = null }) {
-  const ROLE_LEVEL   = { admin: 3, operator: 2, viewer: 1 };
-  const userLevel    = ROLE_LEVEL[user?.role] ?? 0;
-  const visibleItems = NAV_ITEMS.filter((item) => !item.minRole || userLevel >= (ROLE_LEVEL[item.minRole] ?? 0));
+  const location = useLocation();
+  const userLevel = ROLE_LEVEL[user?.role] ?? 0;
+
+  const visibleItems = NAV_ITEMS.filter(
+    (item) => !item.minRole || userLevel >= (ROLE_LEVEL[item.minRole] ?? 0)
+  );
+
+  // Exact match for '/', prefix match for everything else.
+  function isItemActive(item) {
+    if (item.href === '/') return location.pathname === '/';
+    return location.pathname.startsWith(item.href);
+  }
 
   return (
     <nav
       className={cn(
         'fixed inset-x-0 bottom-0 z-50',
-        'w-full max-w-full',
         'lg:hidden',
         'border-t bg-card/95 backdrop-blur-lg',
         'supports-[backdrop-filter]:bg-card/80',
@@ -82,9 +90,13 @@ export function MobileNav({ user = null }) {
       role="navigation"
       aria-label="Mobile navigation"
     >
-      <div className="flex w-full items-center justify-evenly px-1 py-1.5">
+      <div className="flex w-full items-center justify-evenly px-2 py-2">
         {visibleItems.map((item) => (
-          <MobileNavItem key={item.href} item={item} />
+          <MobileNavItem
+            key={item.href}
+            item={item}
+            isActive={isItemActive(item)}
+          />
         ))}
       </div>
     </nav>

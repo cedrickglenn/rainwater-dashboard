@@ -97,7 +97,7 @@ export function Topbar({
               onClick={onMenuClick}
               className={cn(
                 touchButtonClasses,
-                'hidden rounded-xl sm:flex lg:hidden'
+                'flex rounded-xl lg:hidden'
               )}
               aria-label="Open navigation menu"
             >
@@ -107,7 +107,7 @@ export function Topbar({
           <TooltipContent>Open navigation menu</TooltipContent>
         </Tooltip>
 
-        {/* App title on mobile - larger text (16px) for readability */}
+        {/* App title on mobile */}
         <span className="max-w-[160px] truncate text-base font-semibold sm:hidden">
           RainWater
         </span>

@@ -7,7 +7,7 @@
 
 import { json } from '@remix-run/node';
 import { useFetcher } from '@remix-run/react';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { cn } from '~/lib/utils';
 import {
   Card,
@@ -180,6 +180,104 @@ function ContainerSelect({ containers, value, onChange }) {
 }
 
 // ---------------------------------------------------------------------------
+// LiveReading — polls /api/sensors/latest every 2 s and shows the current
+// value for a given sensor key inline within the calibration card.
+// Mobile-first: single flex row, no fixed widths, wraps gracefully.
+// ---------------------------------------------------------------------------
+
+function LiveReading({
+  sensorKey,
+  label,
+  unit,
+  decimals = 1,
+  rawKey = null,
+  rawUnit = null,
+  rawDecimals = 1,
+}) {
+  const [calValue, setCalValue] = useState(null);
+  const [rawValue, setRawValue] = useState(null);
+  const [flash, setFlash] = useState(false);
+  const flashTimer = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function poll() {
+      try {
+        const res = await fetch('/api/sensors/latest');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        const cal = data[sensorKey];
+        setCalValue(cal != null ? Number(cal).toFixed(decimals) : null);
+        if (rawKey) {
+          const raw = data[rawKey];
+          setRawValue(raw != null ? Number(raw).toFixed(rawDecimals) : null);
+        }
+        setFlash(true);
+        clearTimeout(flashTimer.current);
+        flashTimer.current = setTimeout(() => setFlash(false), 400);
+      } catch {
+        // silently ignore — hardware may not be connected
+      }
+    }
+
+    poll();
+    const id = setInterval(poll, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      clearTimeout(flashTimer.current);
+    };
+  }, [sensorKey, decimals, rawKey, rawDecimals]);
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border bg-muted/30 px-3 py-2">
+      {/* Pulsing live dot */}
+      <span className="relative flex h-2 w-2 flex-shrink-0">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+      </span>
+
+      {/* Calibrated value */}
+      <span className="flex items-baseline gap-1.5">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <span
+          className={cn(
+            'font-mono text-sm font-semibold transition-colors duration-300',
+            flash ? 'text-green-600 dark:text-green-400' : 'text-foreground'
+          )}
+        >
+          {calValue != null ? `${calValue}${unit ? ` ${unit}` : ''}` : '—'}
+        </span>
+      </span>
+
+      {/* Raw value — only rendered when rawKey is provided */}
+      {rawKey && (
+        <>
+          <span className="text-xs text-muted-foreground/50">·</span>
+          <span className="flex items-baseline gap-1.5">
+            <span className="text-xs text-muted-foreground">raw</span>
+            <span
+              className={cn(
+                'font-mono text-xs transition-colors duration-300',
+                flash
+                  ? 'text-green-600/70 dark:text-green-400/70'
+                  : 'text-muted-foreground'
+              )}
+            >
+              {rawValue != null
+                ? `${rawValue}${rawUnit ? ` ${rawUnit}` : ''}`
+                : '—'}
+            </span>
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // pH tab
 // ---------------------------------------------------------------------------
 
@@ -198,6 +296,15 @@ function PHTab() {
         containers={PH_CONTAINERS}
         value={container}
         onChange={setContainer}
+      />
+      <LiveReading
+        sensorKey={`PH_${container}`}
+        label="pH"
+        unit="pH"
+        decimals={2}
+        rawKey={`RAW_MV_${container}`}
+        rawUnit="mV"
+        rawDecimals={0}
       />
 
       <Separator />
@@ -297,6 +404,15 @@ function TurbidityTab() {
         containers={TURB_CONTAINERS}
         value={container}
         onChange={setContainer}
+      />
+      <LiveReading
+        sensorKey={`TURB_${container}`}
+        label="Turbidity"
+        unit="NTU"
+        decimals={1}
+        rawKey={`RAW_TURB_V_${container}`}
+        rawUnit="V"
+        rawDecimals={3}
       />
 
       <Separator />
@@ -405,6 +521,15 @@ function LevelTab() {
         value={container}
         onChange={setContainer}
       />
+      <LiveReading
+        sensorKey={`LVL_${container}`}
+        label="Fill"
+        unit="%"
+        decimals={1}
+        rawKey={`RAW_DIST_${container}`}
+        rawUnit="cm"
+        rawDecimals={1}
+      />
 
       <Separator />
 
@@ -480,6 +605,15 @@ function TemperatureTab() {
         value={container}
         onChange={setContainer}
       />
+      <LiveReading
+        sensorKey={`TEMP_${container}`}
+        label="Temp"
+        unit="°C"
+        decimals={1}
+        rawKey={`RAW_TEMP_${container}`}
+        rawUnit="°C raw"
+        rawDecimals={1}
+      />
 
       <Separator />
 
@@ -533,6 +667,13 @@ function FlowTab() {
       title="Flow Sensor Calibration"
       description="Set the pulses-per-litre (PPL) factor for the YF-S201 flow meter on pin 2."
     >
+      <LiveReading
+        sensorKey="FLOW"
+        label="Flow"
+        unit="L/min"
+        decimals={2}
+      />
+
       <div className="space-y-3">
         <p className="text-xs text-muted-foreground">
           To measure your sensor's PPL: run exactly 1 litre of water through it
