@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d/Software Development/**)",
+      "Bash(npm install:*)",
+      "Bash(node -e \"import\\('bcryptjs'\\).then\\(m => m.hash\\('RainwaterAdmin2026', 12\\).then\\(h => console.log\\(h\\)\\)\\)\")",
+      "Bash(npm search:*)",
+      "Bash(npm info:*)",
+      "Bash(curl -s \"https://api.open-meteo.com/v1/forecast?latitude=7.0707&longitude=125.6087&daily=sunrise,sunset&timezone=Asia%2FManila&forecast_days=1\")",
+      "Bash(railway --version)",
+      "Bash(railway login:*)",
+      "Bash(railway init:*)",
+      "Bash(railway variables:*)",
+      "Bash(railway service:*)",
+      "Bash(railway up:*)",
+      "Bash(railway status:*)",
+      "Bash(railway logs:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx web-push:*)",
+      "Bash(node -e ':*)",
+      "Bash(npm run:*)",
+      "Bash(node --input-type=module)"
+    ]
+  }
+}

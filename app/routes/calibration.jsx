@@ -675,6 +675,9 @@ function FlowTab() {
         label="Flow"
         unit="L/min"
         decimals={2}
+        rawKey="RAW_FLOW_PULSES"
+        rawUnit="pulses/interval"
+        rawDecimals={0}
       />
 
       <div className="space-y-3">
