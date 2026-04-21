@@ -168,15 +168,23 @@ mqttClient.on('message', async (topic, payload) => {
 
   try {
     if (topic === 'rainwater/calibration/acks') {
-      // Format: A,CAL_PH,C2,MID,OK,2.53
+      // Normal format:   A,CAL_PH,C2,MID,OK,2.53
+      // CAL_RESET format: A,CAL_RESET,OK  (no container/point fields)
       const parts = raw.split(',');
-      // parts: [A, command, container, point, status, value?]
-      const [, command, container, point, status, value] = parts;
+      let command, container, point, status, value;
+      if (parts[1] === 'CAL_RESET') {
+        [, command] = parts;
+        container = null; point = null; status = parts[2]; value = null;
+      } else {
+        [, command, container, point, status, value] = parts;
+      }
 
       await db.collection('calibration_acks').insertOne({
-        raw, command, container, point,
-        status: status ?? null,
-        value:  value  ?? null,
+        raw, command,
+        container: container ?? null,
+        point:     point     ?? null,
+        status:    status    ?? null,
+        value:     value     ?? null,
         timestamp: new Date(),
       });
 

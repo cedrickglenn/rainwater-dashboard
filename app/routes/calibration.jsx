@@ -191,13 +191,12 @@ function useAckPoller(fetcherData) {
         clearInterval(timerRef.current);
 
         if (match.status === 'OK') {
-          // Build a human-readable message from the parsed fields
           const parts = [match.command, match.container, match.point]
             .filter(Boolean).join(' · ');
           const valuePart = match.value != null ? ` → ${match.value}` : '';
           setAckState({ ok: true, message: `${parts}${valuePart} — applied & saved to EEPROM` });
         } else {
-          setAckState({ ok: false, message: `Device rejected command: ${match.raw ?? 'ERR'}` });
+          setAckState({ ok: false, message: `Device error: ${match.raw ?? 'ERR'}` });
         }
       } catch {
         // network blip — keep polling
