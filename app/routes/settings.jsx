@@ -490,7 +490,6 @@ export default function SettingsPage() {
   // Local state for settings
   const [notifications, setNotifications] = useState(settings.notifications);
   const [display, setDisplay] = useState(settings.display);
-  const [systemControls, setSystemControls] = useState(settings.systemControls);
   const [dataLogging, setDataLogging] = useState(settings.dataLogging);
   const [calibration, setCalibration] = useState(settings.sensorCalibration);
   const [activeTab, setActiveTab] = useState('notifications');
@@ -503,11 +502,6 @@ export default function SettingsPage() {
   // Handle display change
   const handleDisplayChange = (key, value) => {
     setDisplay((prev) => ({ ...prev, [key]: value }));
-  };
-
-  // Handle system controls change
-  const handleSystemControlChange = (key, value) => {
-    setSystemControls((prev) => ({ ...prev, [key]: value }));
   };
 
   // Handle data logging change
@@ -891,75 +885,18 @@ export default function SettingsPage() {
         <TabsContent value="system" className="space-y-6">
           <SettingsSection
             icon={Settings}
-            title="System Controls"
-            description="Configure automatic system behaviors"
+            title="Pipeline Controls"
+            description="Filter mode and backwash are controlled from the Actuators page"
           >
-            <SettingToggle
-              id="autoFilterBackwash"
-              label="Auto Filter Backwash"
-              description="Automatically clean filter at scheduled intervals"
-              checked={systemControls.autoFilterBackwash}
-              onCheckedChange={(checked) =>
-                handleSystemControlChange('autoFilterBackwash', checked)
-              }
-            />
-            <Separator />
-            <SettingToggle
-              id="uvScheduleEnabled"
-              label="UV Schedule"
-              description="Run UV sterilization on a schedule"
-              checked={systemControls.uvScheduleEnabled}
-              onCheckedChange={(checked) =>
-                handleSystemControlChange('uvScheduleEnabled', checked)
-              }
-            />
-            {systemControls.uvScheduleEnabled && (
-              <div className="ml-4 flex items-center gap-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <Label>Start:</Label>
-                  <input
-                    type="time"
-                    value={systemControls.uvScheduleStart}
-                    onChange={(e) =>
-                      handleSystemControlChange(
-                        'uvScheduleStart',
-                        e.target.value
-                      )
-                    }
-                    className="rounded-md border bg-background px-2 py-1"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Label>End:</Label>
-                  <input
-                    type="time"
-                    value={systemControls.uvScheduleEnd}
-                    onChange={(e) =>
-                      handleSystemControlChange('uvScheduleEnd', e.target.value)
-                    }
-                    className="rounded-md border bg-background px-2 py-1"
-                  />
-                </div>
-              </div>
-            )}
-            <Separator />
-            <SettingToggle
-              id="autoAlerts"
-              label="Automatic Alerts"
-              description="System generates alerts automatically"
-              checked={systemControls.autoAlerts}
-              onCheckedChange={(checked) =>
-                handleSystemControlChange('autoAlerts', checked)
-              }
-            />
+            <p className="text-sm text-muted-foreground">
+              Use the{' '}
+              <a href="/actuators" className="font-medium text-primary underline-offset-4 hover:underline">
+                Actuators page
+              </a>{' '}
+              to switch between Charcoal-only and Charcoal + RO filter modes, and to start or stop a backwash cycle.
+              These are live hardware commands sent directly to the Mega.
+            </p>
           </SettingsSection>
-
-          <div className="flex justify-end">
-            <Button onClick={() => handleSave('system')} disabled={isLoading}>
-              <Save className="mr-2 h-4 w-4" />
-              Save System
-            </Button>
-          </div>
         </TabsContent>
 
         {/* Data Tab */}

@@ -222,15 +222,6 @@ export const defaultSettings = {
     temperatureOffset: 0,
   },
 
-  // System control settings
-  systemControls: {
-    autoFilterBackwash: true,
-    uvScheduleEnabled: true,
-    uvScheduleStart: '06:00',
-    uvScheduleEnd: '22:00',
-    autoAlerts: true,
-  },
-
   // Display preferences
   display: {
     theme: 'system', // 'light', 'dark', 'system'

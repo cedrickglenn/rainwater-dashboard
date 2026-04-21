@@ -33,6 +33,8 @@ import {
   StopCircle,
   Info,
   X,
+  Filter,
+  RotateCcw,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -235,7 +237,10 @@ export const loader = async ({ request }) => {
 
   const { getDb } = await import('~/lib/db.server');
   const db = await getDb();
-  const docs = await db.collection('actuator_states').find({}).toArray();
+  const [docs, latestSensor] = await Promise.all([
+    db.collection('actuator_states').find({}).toArray(),
+    db.collection('sensor_readings').findOne({}, { sort: { timestamp: -1 } }),
+  ]);
 
   const now = Date.now();
 
@@ -253,7 +258,11 @@ export const loader = async ({ request }) => {
     })
   );
 
-  return json({ persisted });
+  return json({
+    persisted,
+    filterMode:    latestSensor?.filter_mode    ?? 0,
+    backwashState: latestSensor?.backwash_state ?? 0,
+  });
 };
 
 // ---------------------------------------------------------------------------
@@ -295,7 +304,13 @@ export const action = async ({ request }) => {
   let cmdLines = [];
   let toPersist = [];
 
-  if (intent === 'estop') {
+  if (intent === 'set_filter_mode') {
+    const mode = formData.get('mode'); // 'CHARCOAL' or 'BOTH'
+    cmdLines = [`C,FILTER,${mode}`];
+  } else if (intent === 'backwash') {
+    const action = formData.get('action'); // 'START' or 'STOP'
+    cmdLines = [`C,BACKWASH,${action}`];
+  } else if (intent === 'estop') {
     cmdLines = ['C,ESTOP,ON'];
     // Mark every actuator OFF
     toPersist = [
@@ -516,7 +531,7 @@ function postCommands(body) {
 }
 
 export default function ActuatorsPage() {
-  const { persisted } = useLoaderData();
+  const { persisted, filterMode, backwashState } = useLoaderData();
   const revalidator = useRevalidator();
 
   // on/off state — seeded from MongoDB, updated optimistically on click
@@ -667,6 +682,16 @@ export default function ActuatorsPage() {
     postCommands({ intent: 'estop' });
   };
 
+  const handleFilterMode = (mode) => {
+    postCommands({ intent: 'set_filter_mode', mode });
+    revalidator.revalidate();
+  };
+
+  const handleBackwash = (action) => {
+    postCommands({ intent: 'backwash', action });
+    revalidator.revalidate();
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -731,6 +756,75 @@ export default function ActuatorsPage() {
             ))}
         </div>
       )}
+
+      {/* Filter Mode */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Filter className="h-4 w-4 text-purple-500" />
+            Filter Mode
+          </CardTitle>
+          <CardDescription>
+            Sets the treatment path on the Mega. Charcoal Only sends water
+            straight to C6 after the charcoal filter; Charcoal + RO adds the
+            commercial RO stage before C6.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-3">
+            <Button
+              variant={filterMode === 1 ? 'default' : 'outline'}
+              className="gap-2"
+              onClick={() => handleFilterMode('CHARCOAL')}
+            >
+              <Filter className="h-4 w-4" />
+              Charcoal Only
+            </Button>
+            <Button
+              variant={filterMode === 2 ? 'default' : 'outline'}
+              className="gap-2"
+              onClick={() => handleFilterMode('BOTH')}
+            >
+              <Filter className="h-4 w-4" />
+              Charcoal + RO
+            </Button>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <RotateCcw className="h-4 w-4 text-amber-500" />
+              <span className="text-sm font-medium">Backwash</span>
+              {backwashState === 1 && (
+                <Badge className="bg-amber-500 text-white text-xs">Running</Badge>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                disabled={backwashState === 1}
+                onClick={() => handleBackwash('START')}
+              >
+                <PlayCircle className="h-4 w-4" />
+                Start Backwash
+              </Button>
+              <Button
+                variant={backwashState === 1 ? 'destructive' : 'outline'}
+                size="sm"
+                className="gap-2"
+                disabled={backwashState === 0}
+                onClick={() => handleBackwash('STOP')}
+              >
+                <StopCircle className="h-4 w-4" />
+                Stop Backwash
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Tabs */}
       <Tabs defaultValue="manual" className="space-y-6">

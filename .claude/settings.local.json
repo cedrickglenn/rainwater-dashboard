@@ -26,7 +26,11 @@
       "Bash(ls railway* railway.*)",
       "Bash(ls .railway*)",
       "Bash(cat railway.toml)",
-      "Bash(cat railway.json)"
+      "Bash(cat railway.json)",
+      "Bash(git -C \"d:/Software Development/rainwaterIOT/RainwaterIOT\" log --oneline -5)",
+      "Bash(git -C \"d:/Software Development/rainwaterIOT/RainwaterIOT\" show HEAD --stat)",
+      "Bash(git -C \"d:/Software Development/rainwaterIOT/RainwaterIOT\" show HEAD -- src/comms.cpp)",
+      "Bash(git -C \"d:/Software Development/rainwaterIOT/RainwaterIOT\" diff HEAD~1 HEAD -- src/comms.cpp)"
     ]
   }
 }
