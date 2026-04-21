@@ -72,6 +72,10 @@ mqttClient.on('connect', () => {
     if (err) console.error('[mqtt] Subscribe error:', err.message);
     else     console.log('[mqtt] Subscribed to rainwater/heartbeat');
   });
+  mqttClient.subscribe('rainwater/actuators', { qos: 0 }, (err) => {
+    if (err) console.error('[mqtt] Subscribe error:', err.message);
+    else     console.log('[mqtt] Subscribed to rainwater/actuators');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -246,6 +250,24 @@ mqttClient.on('message', async (topic, payload) => {
       } catch {
         // Malformed payload — skip
       }
+    }
+
+    if (topic === 'rainwater/actuators') {
+      // Format: "V1:0,V2:1,V3:0,V4:0,V5:0,V6:0,V7:0,V8:0,P1:0,P2:1,P3:0,P4:0"
+      // Upsert each actuator with its real hardware state. confirmed:true because
+      // this comes directly from the Mega's pin state, not a commanded intent.
+      const pairs = raw.split(',');
+      await Promise.all(pairs.map((pair) => {
+        const [id, val] = pair.split(':');
+        if (!id || val === undefined) return;
+        const state = val.trim() === '1' ? 'ON' : 'OFF';
+        const type  = id.startsWith('V') ? 'VALVE' : 'PUMP';
+        return db.collection('actuator_states').updateOne(
+          { actuatorId: id },
+          { $set: { actuatorId: id, type, state, confirmed: true, updatedAt: new Date(), source: 'mega' } },
+          { upsert: true }
+        );
+      }));
     }
 
     if (topic === 'rainwater/sensors') {

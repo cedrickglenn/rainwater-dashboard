@@ -32,6 +32,7 @@ import {
   PlayCircle,
   StopCircle,
   Info,
+  X,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
