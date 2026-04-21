@@ -22,7 +22,11 @@
       "Bash(node --input-type=module)",
       "Bash(curl -s https://ipinfo.io/20.24.64.87/json)",
       "Bash(git -C \"/d/Software Development/rainwater-dashboard\" log --oneline)",
-      "Bash(xargs ls *)"
+      "Bash(xargs ls *)",
+      "Bash(ls railway* railway.*)",
+      "Bash(ls .railway*)",
+      "Bash(cat railway.toml)",
+      "Bash(cat railway.json)"
     ]
   }
 }
