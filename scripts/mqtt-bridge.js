@@ -278,11 +278,14 @@ mqttClient.on('message', async (topic, payload) => {
       if (!global._lastSensorWrite || now - global._lastSensorWrite >= 2000) {
         global._lastSensorWrite = now;
         try {
-          const payload = JSON.parse(raw);
+          const payload    = JSON.parse(raw);
+          const normalized = Object.fromEntries(
+            Object.entries(payload).map(([k, v]) => [k.toLowerCase(), v])
+          );
           await db.collection('sensor_readings').insertOne({
             timestamp: new Date(),
             metadata:  { source: 'esp32' },
-            ...payload,
+            ...normalized,
           });
         } catch {
           // Malformed JSON — skip
