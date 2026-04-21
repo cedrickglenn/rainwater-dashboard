@@ -39,7 +39,7 @@ export const loader = async () => {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
   const [latestDoc, historyDocs, logDocs, heartbeatDoc, weather] = await Promise.all([
-    db.collection('sensor_readings').findOne({}, { sort: { timestamp: -1 } }),
+    db.collection('sensor_readings').find({}).sort({ timestamp: -1 }).limit(1).next(),
 
     db.collection('sensor_readings')
       .find({ timestamp: { $gte: since } })

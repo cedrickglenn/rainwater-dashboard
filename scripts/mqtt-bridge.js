@@ -287,8 +287,9 @@ mqttClient.on('message', async (topic, payload) => {
             metadata:  { source: 'esp32' },
             ...normalized,
           });
-        } catch {
-          // Malformed JSON — skip
+          console.log('[bridge] Sensor reading written. Keys:', Object.keys(normalized).join(', '));
+        } catch (err) {
+          console.error('[bridge] Sensor write failed:', err.message, '| raw length:', raw.length, '| raw (first 200):', raw.slice(0, 200));
         }
       }
     }
