@@ -38,6 +38,8 @@ import {
   Clock,
   RotateCcw,
   FlaskConical,
+  Loader2,
+  DatabaseZap,
 } from 'lucide-react';
 import { SerialMonitor } from '~/components/dashboard/serial-monitor';
 
@@ -123,29 +125,146 @@ function CalSection({ icon: Icon, title, description, children }) {
   );
 }
 
-function AckStatus({ data }) {
-  if (!data) return null;
-  return (
-    <div
-      className={cn(
-        'flex items-center gap-2 rounded-lg px-3 py-2 text-sm',
-        data.ok
-          ? 'bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400'
-          : 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400'
-      )}
-    >
-      {data.ok ? (
-        <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-      ) : (
+// ---------------------------------------------------------------------------
+// ACK polling hook
+// After the dashboard action returns { ok, queued }, we poll
+// GET /api/calibration/acks until a matching ACK arrives or 15s elapses.
+//
+// The Mega ACK format is: A,<COMMAND>,<CONTAINER>,<POINT>,<OK|ERR>,<value?>
+// e.g.  A,CAL_LVL,C4,EMPTY,OK,42.3
+//       A,CAL_PH,C2,MID,OK,2530.00
+//       A,CAL_RESET,OK          (no container/point)
+// ---------------------------------------------------------------------------
+
+const ACK_POLL_MS   = 1000;
+const ACK_TIMEOUT_MS = 15000;
+
+// Derive the ACK prefix to match against the raw ACK string.
+// Most commands: C,CAL_LVL,C4,EMPTY  → A,CAL_LVL,C4,EMPTY
+// CAL_RESET special case: Mega ACKs as A,CAL_RESET,OK (not A,CAL_RESET,ALL)
+function ackPrefixFor(cmdLine) {
+  if (!cmdLine) return null;
+  if (cmdLine.startsWith('C,CAL_RESET,')) return 'A,CAL_RESET,OK';
+  return 'A,' + cmdLine.slice(2);
+}
+
+function useAckPoller(fetcherData) {
+  const [ackState, setAckState] = useState(null); // null | 'waiting' | { ok, message }
+  const timerRef  = useRef(null);
+  const startRef  = useRef(null);
+  const prefixRef = useRef(null);
+
+  useEffect(() => {
+    if (!fetcherData?.ok || !fetcherData?.queued) return;
+
+    const prefix = ackPrefixFor(fetcherData.queued);
+    if (!prefix) return;
+
+    // Reset for each new submission
+    prefixRef.current = prefix;
+    startRef.current  = Date.now();
+    setAckState('waiting');
+    clearInterval(timerRef.current);
+
+    timerRef.current = setInterval(async () => {
+      if (Date.now() - startRef.current > ACK_TIMEOUT_MS) {
+        clearInterval(timerRef.current);
+        setAckState({ ok: false, message: 'No ACK from device after 15 s — check serial connection.' });
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/calibration/acks');
+        if (!res.ok) return;
+        const { acks } = await res.json();
+
+        // Only match ACKs that arrived after this submission started,
+        // so stale ACKs from previous calibration sessions don't fire immediately.
+        const submittedAt = startRef.current;
+        const match = acks.find(
+          a => a.raw &&
+               a.raw.startsWith(prefixRef.current) &&
+               new Date(a.timestamp).getTime() >= submittedAt
+        );
+        if (!match) return;
+
+        clearInterval(timerRef.current);
+
+        if (match.status === 'OK') {
+          // Build a human-readable message from the parsed fields
+          const parts = [match.command, match.container, match.point]
+            .filter(Boolean).join(' · ');
+          const valuePart = match.value != null ? ` → ${match.value}` : '';
+          setAckState({ ok: true, message: `${parts}${valuePart} — applied & saved to EEPROM` });
+        } else {
+          setAckState({ ok: false, message: `Device rejected command: ${match.raw ?? 'ERR'}` });
+        }
+      } catch {
+        // network blip — keep polling
+      }
+    }, ACK_POLL_MS);
+
+    return () => clearInterval(timerRef.current);
+  }, [fetcherData]);
+
+  return ackState;
+}
+
+// ---------------------------------------------------------------------------
+// AckStatus — shows queued → waiting → device ACK result
+// ---------------------------------------------------------------------------
+
+function AckStatus({ fetcherData, submitting }) {
+  const ackState = useAckPoller(fetcherData);
+
+  if (submitting) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin" />
+        <span className="font-mono text-xs">Sending command…</span>
+      </div>
+    );
+  }
+
+  if (ackState === 'waiting') {
+    return (
+      <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin" />
+        <span className="font-mono text-xs">Waiting for device ACK…</span>
+      </div>
+    );
+  }
+
+  if (ackState && typeof ackState === 'object') {
+    return (
+      <div
+        className={cn(
+          'flex items-center gap-2 rounded-lg px-3 py-2 text-sm',
+          ackState.ok
+            ? 'bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400'
+            : 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400'
+        )}
+      >
+        {ackState.ok ? (
+          <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+        ) : (
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+        )}
+        <span className="font-mono text-xs">{ackState.message}</span>
+      </div>
+    );
+  }
+
+  if (fetcherData && !fetcherData.ok) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-400">
         <AlertCircle className="h-4 w-4 flex-shrink-0" />
-      )}
-      <span className="font-mono text-xs">
-        {data.ok
-          ? `Queued → ${data.queued}`
-          : (data.error ?? 'Failed to send command')}
-      </span>
-    </div>
-  );
+        <span className="font-mono text-xs">{fetcherData.error ?? 'Failed to send command'}</span>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 function Step({ number, text }) {
@@ -381,7 +500,7 @@ function PHTab() {
         </fetcher.Form>
       </div>
 
-      <AckStatus data={fetcher.data} />
+      <AckStatus fetcherData={fetcher.data} submitting={submitting} />
     </CalSection>
   );
 }
@@ -499,7 +618,7 @@ function TurbidityTab() {
         </fetcher.Form>
       </div>
 
-      <AckStatus data={fetcher.data} />
+      <AckStatus fetcherData={fetcher.data} submitting={submitting} />
     </CalSection>
   );
 }
@@ -582,7 +701,7 @@ function LevelTab() {
         </div>
       </div>
 
-      <AckStatus data={fetcher.data} />
+      <AckStatus fetcherData={fetcher.data} submitting={submitting} />
     </CalSection>
   );
 }
@@ -650,7 +769,7 @@ function TemperatureTab() {
         </fetcher.Form>
       </div>
 
-      <AckStatus data={fetcher.data} />
+      <AckStatus fetcherData={fetcher.data} submitting={submitting} />
     </CalSection>
   );
 }
@@ -709,7 +828,7 @@ function FlowTab() {
         </fetcher.Form>
       </div>
 
-      <AckStatus data={fetcher.data} />
+      <AckStatus fetcherData={fetcher.data} submitting={submitting} />
     </CalSection>
   );
 }
@@ -719,7 +838,7 @@ function FlowTab() {
 // ---------------------------------------------------------------------------
 
 function ResetSection() {
-  const fetcher = useFetcher();
+  const fetcher   = useFetcher();
   const submitting = fetcher.state === 'submitting';
 
   return (
@@ -748,7 +867,200 @@ function ResetSection() {
             {submitting ? 'Sending…' : 'Reset All Calibration'}
           </Button>
         </fetcher.Form>
-        <AckStatus data={fetcher.data} />
+        <AckStatus fetcherData={fetcher.data} submitting={submitting} />
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CalibrationSummary — polls /api/calibration/acks for the last-known OK
+// value per (command, container, point) and renders a compact table.
+// Refreshes every 10 s and immediately after the page receives a new ACK.
+// ---------------------------------------------------------------------------
+
+const SUMMARY_GROUPS = [
+  {
+    label: 'Water Level',
+    icon: Waves,
+    rows: [
+      { command: 'CAL_LVL', containers: ['C2','C3','C4','C5','C6'], point: 'EMPTY', desc: 'Empty', unit: 'cm' },
+      { command: 'CAL_LVL', containers: ['C2','C3','C4','C5','C6'], point: 'FULL',  desc: 'Full',  unit: 'cm' },
+    ],
+  },
+  {
+    label: 'pH',
+    icon: Droplets,
+    rows: [
+      { command: 'CAL_PH', containers: ['C2','C5','C6'], point: 'MID', desc: 'Neutral (pH 7)', unit: 'mV' },
+      { command: 'CAL_PH', containers: ['C2','C5','C6'], point: 'LOW', desc: 'Acid (pH 4)',    unit: 'mV' },
+    ],
+  },
+  {
+    label: 'Turbidity',
+    icon: Eye,
+    rows: [
+      { command: 'CAL_TURB', containers: ['C2','C5','C6'], point: 'ZERO', desc: 'Zero (0 NTU)', unit: 'V'   },
+      { command: 'CAL_TURB', containers: ['C2','C5','C6'], point: 'SPAN', desc: 'Span',         unit: 'NTU' },
+    ],
+  },
+  {
+    label: 'Temperature',
+    icon: Thermometer,
+    rows: [
+      { command: 'CAL_TEMP', containers: ['C2','C5','C6'], point: 'OFFSET', desc: 'Offset', unit: '°C' },
+    ],
+  },
+  {
+    label: 'Flow',
+    icon: Wind,
+    rows: [
+      { command: 'CAL_FLOW', containers: ['PPL'], point: null, desc: 'Pulses/L', unit: 'PPL' },
+    ],
+  },
+];
+
+function SummaryCell({ entry }) {
+  if (!entry) {
+    return <span className="text-muted-foreground/40">—</span>;
+  }
+  const ts = new Date(entry.timestamp);
+  const age = Date.now() - ts.getTime();
+  const ageStr = age < 60_000
+    ? 'just now'
+    : age < 3_600_000
+    ? `${Math.floor(age / 60_000)}m ago`
+    : ts.toLocaleDateString();
+
+  return (
+    <span className="flex flex-col gap-0.5">
+      <span className="font-mono text-xs font-semibold text-foreground">
+        {entry.value ?? '—'} <span className="font-normal text-muted-foreground">{entry.unit}</span>
+      </span>
+      <span className="text-[10px] text-muted-foreground/60">{ageStr}</span>
+    </span>
+  );
+}
+
+function CalibrationSummary() {
+  const [summary, setSummary] = useState(null); // null = loading, [] = empty
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const res = await fetch('/api/calibration/acks');
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setSummary(data.summary ?? []);
+      } catch {
+        // silently ignore
+      }
+    }
+
+    load();
+    const id = setInterval(load, 10_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
+  // Index summary by "command|container|point" for O(1) lookup
+  const index = {};
+  if (summary) {
+    for (const s of summary) {
+      const key = `${s.command}|${s.container ?? ''}|${s.point ?? ''}`;
+      index[key] = s;
+    }
+  }
+
+  function lookup(command, container, point) {
+    const key = `${command}|${container ?? ''}|${point ?? ''}`;
+    const entry = index[key];
+    if (!entry) return null;
+    // Find the unit from SUMMARY_GROUPS
+    let unit = '';
+    for (const g of SUMMARY_GROUPS) {
+      for (const r of g.rows) {
+        if (r.command === command && r.point === point) { unit = r.unit; break; }
+      }
+    }
+    return { ...entry, unit };
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <DatabaseZap className="h-5 w-5 text-primary" />
+          Active Calibration Values
+        </CardTitle>
+        <CardDescription>
+          Last values confirmed by the Mega and saved to EEPROM. Sourced from
+          calibration ACKs — reflects the dashboard calibration history.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {summary === null ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading…
+          </div>
+        ) : summary.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No calibration ACKs on record yet. Calibrate a sensor above to populate this summary.
+          </p>
+        ) : (
+          SUMMARY_GROUPS.map(({ label, icon: Icon, rows }) => {
+            // Gather all containers across this group's rows
+            const allContainers = [...new Set(rows.flatMap(r => r.containers))];
+
+            // Check if this group has any data at all — skip rendering if not
+            const hasData = rows.some(r =>
+              r.containers.some(c => lookup(r.command, c, r.point))
+            );
+            if (!hasData) return null;
+
+            return (
+              <div key={label} className="space-y-2">
+                <div className="flex items-center gap-1.5 text-sm font-medium">
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                  {label}
+                </div>
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/30">
+                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                          Point
+                        </th>
+                        {allContainers.map(c => (
+                          <th key={c} className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">
+                            {c}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(({ command, containers, point, desc }) => (
+                        <tr key={`${command}|${point}`} className="border-b last:border-0">
+                          <td className="px-3 py-2 text-xs text-muted-foreground">{desc}</td>
+                          {allContainers.map(c => (
+                            <td key={c} className="px-3 py-2 text-center">
+                              {containers.includes(c)
+                                ? <SummaryCell entry={lookup(command, c, point)} />
+                                : <span className="text-muted-foreground/20 text-xs">n/a</span>
+                              }
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })
+        )}
       </CardContent>
     </Card>
   );
@@ -850,6 +1162,9 @@ export default function CalibrationPage() {
           <FlowTab />
         </TabsContent>
       </Tabs>
+
+      <Separator />
+      <CalibrationSummary />
 
       <Separator />
       {/* Serial Monitor — streams rainwater/logs via MQTT → SSE */}

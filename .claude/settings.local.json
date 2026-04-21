@@ -19,7 +19,10 @@
       "Bash(npx web-push:*)",
       "Bash(node -e ':*)",
       "Bash(npm run:*)",
-      "Bash(node --input-type=module)"
+      "Bash(node --input-type=module)",
+      "Bash(curl -s https://ipinfo.io/20.24.64.87/json)",
+      "Bash(git -C \"/d/Software Development/rainwater-dashboard\" log --oneline)",
+      "Bash(xargs ls *)"
     ]
   }
 }

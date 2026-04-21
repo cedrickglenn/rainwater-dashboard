@@ -5,16 +5,28 @@
 import { json } from '@remix-run/node';
 import { getDb } from '~/lib/db.server';
 
-// React reads latest ACKs
+// React reads latest ACKs + a per-(command,container,point) summary of last OK values
 export async function loader() {
     const db   = await getDb();
     const acks = await db.collection('calibration_acks')
         .find()
         .sort({ timestamp: -1 })
-        .limit(50)
+        .limit(200)
         .toArray();
 
-    return json({ acks });
+    // Build summary: latest OK ACK per unique (command, container, point) key.
+    // Iterating in descending timestamp order means first match per key wins.
+    const seen    = new Set();
+    const summary = [];
+    for (const a of acks) {
+        if (a.status !== 'OK') continue;
+        const key = `${a.command}|${a.container ?? ''}|${a.point ?? ''}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        summary.push({ command: a.command, container: a.container ?? null, point: a.point ?? null, value: a.value ?? null, timestamp: a.timestamp });
+    }
+
+    return json({ acks: acks.slice(0, 50), summary });
 }
 
 // ESP32 posts ACK from Mega
