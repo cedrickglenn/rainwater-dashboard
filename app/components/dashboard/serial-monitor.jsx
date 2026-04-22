@@ -30,10 +30,10 @@ import {
 const MAX_LINES = 500;
 
 const LEVEL_STYLES = {
-  WARN: { text: 'text-amber-400',  label: 'WARN' },
-  ERR:  { text: 'text-red-400',    label: 'ERR ' },
-  OK:   { text: 'text-green-400',  label: 'OK  ' },
-  INFO: { text: 'text-zinc-400',   label: 'INFO' },
+  WARN: { text: 'text-amber-400',   label: 'WARN' },
+  ERR:  { text: 'text-red-400',     label: 'ERR ' },
+  OK:   { text: 'text-green-400',   label: 'OK  ' },
+  INFO: { text: 'text-zinc-300 dark:text-zinc-300', label: 'INFO' },
 };
 
 function levelStyle(level) {
@@ -93,10 +93,10 @@ function LogLine({ line }) {
 
   if (isDebug) {
     return (
-      <div className="flex gap-2 font-mono text-xs leading-relaxed opacity-40">
-        <span className="shrink-0 text-zinc-600">{formatTime(line.ts)}</span>
-        <span className="shrink-0 w-9 text-zinc-600">DBG</span>
-        <span className="break-all text-zinc-500">{line.raw}</span>
+      <div className="flex gap-2 font-mono text-xs leading-relaxed opacity-50">
+        <span className="shrink-0 text-zinc-400 dark:text-zinc-500">{formatTime(line.ts)}</span>
+        <span className="shrink-0 w-9 text-zinc-400 dark:text-zinc-500">DBG</span>
+        <span className="break-all text-zinc-400 dark:text-zinc-500">{line.raw}</span>
       </div>
     );
   }
@@ -104,12 +104,12 @@ function LogLine({ line }) {
   const { text: levelText, label } = levelStyle(line.level);
   return (
     <div className="flex gap-2 font-mono text-xs leading-relaxed">
-      <span className="shrink-0 text-zinc-600">{formatTime(line.ts)}</span>
+      <span className="shrink-0 text-zinc-400 dark:text-zinc-500">{formatTime(line.ts)}</span>
       <span className={cn('w-9 shrink-0 font-semibold', levelText)}>{label}</span>
       {line.source && (
-        <span className="w-16 shrink-0 truncate text-zinc-500">{line.source}</span>
+        <span className="w-16 shrink-0 truncate text-zinc-400 dark:text-zinc-400">{line.source}</span>
       )}
-      <span className="break-all text-zinc-200">{line.message}</span>
+      <span className="break-all text-zinc-900 dark:text-white">{line.message}</span>
     </div>
   );
 }
@@ -281,10 +281,10 @@ export function SerialMonitor({ className }) {
           <div
             ref={containerRef}
             onScroll={handleScroll}
-            className="h-64 overflow-y-auto bg-zinc-950 px-4 py-3 sm:h-80"
+            className="h-64 overflow-y-auto bg-zinc-100 dark:bg-zinc-950 px-4 py-3 sm:h-80"
           >
             {visibleLines.length === 0 ? (
-              <p className="font-mono text-xs text-zinc-600">
+              <p className="font-mono text-xs text-zinc-500 dark:text-zinc-600">
                 {sseStatus === 'connecting'
                   ? 'Connecting to MQTT broker…'
                   : showDebug
@@ -301,11 +301,11 @@ export function SerialMonitor({ className }) {
           </div>
 
           {/* Footer bar */}
-          <div className="flex items-center justify-between border-t bg-zinc-900 px-4 py-1.5">
-            <span className="font-mono text-[10px] text-zinc-600">
+          <div className="flex items-center justify-between border-t bg-zinc-200 dark:bg-zinc-900 px-4 py-1.5">
+            <span className="font-mono text-[10px] text-zinc-500 dark:text-zinc-600">
               {visibleLines.length} line{visibleLines.length !== 1 ? 's' : ''}
               {!showDebug && debugCount > 0 && (
-                <span className="ml-2 text-zinc-700">{debugCount} debug hidden</span>
+                <span className="ml-2 text-zinc-400 dark:text-zinc-700">{debugCount} debug hidden</span>
               )}
               {lines.length >= MAX_LINES && ` (capped at ${MAX_LINES})`}
             </span>
