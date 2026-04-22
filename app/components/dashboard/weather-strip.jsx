@@ -16,13 +16,13 @@ function RainOutlook({ forecast }) {
   const chance = today?.rainChance ?? 0;
 
   if (chance >= 60) {
-    return <span>Rain likely — <span className="font-mono font-semibold text-foreground">{chance}%</span> chance</span>;
+    return <span>Rain likely — <span className="font-mono font-medium text-foreground">{chance}%</span> chance</span>;
   }
   if (chance >= 30) {
-    return <span>Chance of rain — <span className="font-mono font-semibold text-foreground">{chance}%</span> today</span>;
+    return <span>Chance of rain — <span className="font-mono font-medium text-foreground">{chance}%</span> today</span>;
   }
   if (chance > 0) {
-    return <span>Low rain chance — <span className="font-mono font-semibold text-foreground">{chance}%</span></span>;
+    return <span>Low rain chance — <span className="font-mono font-medium text-foreground">{chance}%</span></span>;
   }
   return <span>No rain expected today</span>;
 }
@@ -66,14 +66,14 @@ export function WeatherStrip({ weather, className }) {
 
       <div className="flex items-center gap-1.5 text-xs leading-none">
         <span className="text-muted-foreground">Humidity</span>
-        <span className="font-mono font-semibold">{current.humidity}%</span>
+        <span className="font-mono font-medium">{current.humidity}%</span>
       </div>
 
       <span className="text-muted-foreground/30">·</span>
 
       <div className="flex items-center gap-1.5 text-xs leading-none">
         <span className="text-muted-foreground">Wind</span>
-        <span className="font-mono font-semibold">{current.wind} km/h</span>
+        <span className="font-mono font-medium">{current.wind} km/h</span>
       </div>
 
       <span className="text-muted-foreground/30">·</span>

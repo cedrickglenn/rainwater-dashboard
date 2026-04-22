@@ -15,10 +15,24 @@ import { Form, Link } from '@remix-run/react';
 import { cn } from '~/lib/utils';
 import { Button } from '~/components/ui/button';
 import { Badge } from '~/components/ui/badge';
-import { Tooltip, TooltipTrigger, TooltipContent } from '~/components/ui/tooltip';
 import {
-  Menu, Bell, Sun, Moon, RefreshCw, LogIn, LogOut, ShieldCheck,
-  AlertTriangle, XCircle, CheckCircle, Info,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from '~/components/ui/tooltip';
+import {
+  Menu,
+  Bell,
+  Sun,
+  Moon,
+  RefreshCw,
+  LogIn,
+  LogOut,
+  ShieldCheck,
+  AlertTriangle,
+  XCircle,
+  CheckCircle,
+  Info,
 } from 'lucide-react';
 
 // Meteocons SVG from /public/weather-icons/
@@ -44,9 +58,12 @@ function TopbarWeatherIcon({ name, className }) {
  */
 function NotificationsPanel({ notifications, alertCount, onClose }) {
   const levelIcon = (level) => {
-    if (level === 'ERR')  return <XCircle className="h-4 w-4 shrink-0 text-[#DC2645]" />;
-    if (level === 'WARN') return <AlertTriangle className="h-4 w-4 shrink-0 text-[#D97706]" />;
-    if (level === 'OK')   return <CheckCircle className="h-4 w-4 shrink-0 text-[#16A876]" />;
+    if (level === 'ERR')
+      return <XCircle className="h-4 w-4 shrink-0 text-[#DC2645]" />;
+    if (level === 'WARN')
+      return <AlertTriangle className="h-4 w-4 shrink-0 text-[#D97706]" />;
+    if (level === 'OK')
+      return <CheckCircle className="h-4 w-4 shrink-0 text-[#16A876]" />;
     return <Info className="h-4 w-4 shrink-0 text-muted-foreground" />;
   };
 
@@ -66,7 +83,9 @@ function NotificationsPanel({ notifications, alertCount, onClose }) {
       <div className="flex items-center justify-between border-b px-4 py-3">
         <span className="text-sm font-semibold">Notifications</span>
         {alertCount > 0 && (
-          <span className="text-xs text-muted-foreground">{alertCount} in last 24h</span>
+          <span className="text-xs text-muted-foreground">
+            {alertCount} in last 24h
+          </span>
         )}
       </div>
       <div className="max-h-80 overflow-y-auto">
@@ -77,7 +96,10 @@ function NotificationsPanel({ notifications, alertCount, onClose }) {
         ) : (
           <ul>
             {notifications.map((n) => (
-              <li key={n.id} className="flex gap-3 border-b px-4 py-3 last:border-0">
+              <li
+                key={n.id}
+                className="flex gap-3 border-b px-4 py-3 last:border-0"
+              >
                 <div className="mt-0.5">{levelIcon(n.level)}</div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-medium">{n.message}</p>
@@ -164,10 +186,7 @@ export function Topbar({
               variant="ghost"
               size="icon"
               onClick={onMenuClick}
-              className={cn(
-                touchButtonClasses,
-                'flex rounded-xl lg:hidden'
-              )}
+              className={cn(touchButtonClasses, 'flex rounded-xl lg:hidden')}
               aria-label="Open navigation menu"
             >
               <Menu className="h-6 w-6" />
@@ -179,11 +198,10 @@ export function Topbar({
         {/* App title on mobile — links to home for UX */}
         <Link
           to="/"
-          className="truncate text-base font-semibold sm:hidden hover:opacity-75 transition-opacity"
+          className="truncate text-base font-semibold transition-opacity hover:opacity-75 sm:hidden"
         >
           RainSense
         </Link>
-
       </div>
 
       {/* Right section - generous spacing between buttons */}
@@ -195,7 +213,7 @@ export function Topbar({
             <div className="flex h-9 items-center gap-1 rounded-full border bg-muted/60 px-2.5 lg:hidden">
               <TopbarWeatherIcon
                 name={weather.current.icon}
-                className="h-[22px] w-[22px] shrink-0 self-center"
+                className="weather-icon h-[22px] w-[22px] shrink-0 self-center"
               />
               <span className="text-[13px] font-semibold tabular-nums leading-none">
                 {weather.current.temp}°
@@ -205,7 +223,6 @@ export function Topbar({
             <div className="hidden items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm lg:flex">
               <TopbarWeatherIcon
                 name={weather.current.icon}
-
                 className="h-5 w-5"
               />
               <span className="font-medium">{weather.current.temp}°C</span>
@@ -246,12 +263,20 @@ export function Topbar({
               size="icon"
               onClick={onThemeToggle}
               className={cn(touchButtonClasses, 'rounded-xl')}
-              aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label={
+                isDark ? 'Switch to light mode' : 'Switch to dark mode'
+              }
             >
-              {isDark ? <Sun className="h-6 w-6" /> : <Moon className="h-6 w-6" />}
+              {isDark ? (
+                <Sun className="h-6 w-6" />
+              ) : (
+                <Moon className="h-6 w-6" />
+              )}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{isDark ? 'Switch to light mode' : 'Switch to dark mode'}</TooltipContent>
+          <TooltipContent>
+            {isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          </TooltipContent>
         </Tooltip>
 
         {/* Notifications - 48px touch target, 24px icon */}
@@ -278,7 +303,9 @@ export function Topbar({
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              {alertCount > 0 ? `${alertCount} alert${alertCount > 1 ? 's' : ''} in last 24h` : 'Notifications'}
+              {alertCount > 0
+                ? `${alertCount} alert${alertCount > 1 ? 's' : ''} in last 24h`
+                : 'Notifications'}
             </TooltipContent>
           </Tooltip>
           {notifOpen && (
@@ -293,10 +320,12 @@ export function Topbar({
         {/* User menu */}
         {user ? (
           <div className="flex items-center gap-1.5">
-            <div className={cn(
-              'hidden items-center gap-1.5 rounded-xl border px-3 py-1.5 sm:flex',
-              'text-xs font-medium text-muted-foreground'
-            )}>
+            <div
+              className={cn(
+                'hidden items-center gap-1.5 rounded-xl border px-3 py-1.5 sm:flex',
+                'text-xs font-medium text-muted-foreground'
+              )}
+            >
               <ShieldCheck className="h-3.5 w-3.5 text-primary" />
               {user.username}
             </div>
