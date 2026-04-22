@@ -520,8 +520,8 @@ export default function SettingsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        {/* Mobile: Select dropdown */}
-        <div className="sm:hidden">
+        {/* Mobile: Select dropdown — sticky so it stays reachable while scrolling */}
+        <div className="sticky top-[60px] z-20 -mx-4 bg-background/90 px-4 py-2 backdrop-blur-sm sm:hidden">
           <Select value={activeTab} onValueChange={setActiveTab}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Select section" />

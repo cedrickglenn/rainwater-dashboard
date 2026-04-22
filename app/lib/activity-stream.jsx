@@ -6,7 +6,7 @@
  * Toasts are fired here so they work on every page.
  *
  * Usage:
- *   const { liveStatus, deviceStatus, subscribe } = useActivityStream();
+ *   const { liveStatus, deviceStatus, subscribe, subscribeActuators } = useActivityStream();
  *
  *   // deviceStatus shape:
  *   //   { esp32: { online: bool, lastSeen: string|null },
@@ -33,12 +33,18 @@ export function ActivityStreamProvider({ children }) {
   const [liveStatus, setLiveStatus] = useState('connecting');
   const [deviceStatus, setDeviceStatus] = useState(INITIAL_DEVICE_STATUS);
   const listenersRef = useRef(new Set());
+  const actuatorListenersRef = useRef(new Set());
 
-  // Pages call subscribe(fn) to receive new entries.
-  // Returns an unsubscribe function — safe to use as useEffect cleanup.
   const subscribe = useCallback((fn) => {
     listenersRef.current.add(fn);
     return () => listenersRef.current.delete(fn);
+  }, []);
+
+  // Pages call subscribeActuators(fn) to receive actuator state snapshots.
+  // fn receives { states: { [id]: { state, type, confirmed } } }
+  const subscribeActuators = useCallback((fn) => {
+    actuatorListenersRef.current.add(fn);
+    return () => actuatorListenersRef.current.delete(fn);
   }, []);
 
   useEffect(() => {
@@ -50,15 +56,8 @@ export function ActivityStreamProvider({ children }) {
       const entry = JSON.parse(e.data);
       setLiveStatus('live');
 
-      // Notify all subscribed pages
       listenersRef.current.forEach((fn) => fn(entry));
 
-      // Toast rules:
-      //  • warnings and errors   — always toast; [MEGA] prefix stripped since
-      //    the toast context makes source clear.
-      //  • ACTUATOR / PUMP INFO  — toast so the user gets immediate feedback
-      //    that a valve/pump command executed (e.g. "V1 opened").
-      //  • everything else INFO  — silent (visible in activity log only)
       if (entry.type === 'warning' || entry.type === 'error') {
         const msg = entry.message.replace(/^\[MEGA\]\s*/i, '');
         toast(msg, { type: entry.type });
@@ -75,13 +74,18 @@ export function ActivityStreamProvider({ children }) {
       setDeviceStatus(JSON.parse(e.data));
     });
 
+    es.addEventListener('actuator-state', (e) => {
+      const data = JSON.parse(e.data);
+      actuatorListenersRef.current.forEach((fn) => fn(data));
+    });
+
     es.onerror = () => setLiveStatus('disconnected');
 
     return () => es.close();
   }, []);
 
   return (
-    <ActivityStreamContext.Provider value={{ liveStatus, deviceStatus, subscribe }}>
+    <ActivityStreamContext.Provider value={{ liveStatus, deviceStatus, subscribe, subscribeActuators }}>
       {children}
     </ActivityStreamContext.Provider>
   );

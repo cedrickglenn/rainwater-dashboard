@@ -104,6 +104,27 @@ export async function loader({ request }) {
 
       await sendDeviceStatus();
 
+      // Track a lightweight hash of actuator states so we only emit when something changes.
+      let lastActuatorHash = '';
+
+      const sendActuatorState = async () => {
+        try {
+          const docs = await db.collection('actuator_states').find({}).toArray();
+          const stateMap = Object.fromEntries(
+            docs.map((d) => [d.actuatorId, { state: d.state, type: d.type, confirmed: d.confirmed }])
+          );
+          const hash = JSON.stringify(stateMap);
+          if (hash !== lastActuatorHash) {
+            lastActuatorHash = hash;
+            enqueue('actuator-state', { states: stateMap });
+          }
+        } catch {
+          // Transient DB error — skip this tick
+        }
+      };
+
+      await sendActuatorState();
+
       intervalId = setInterval(async () => {
         if (signal.aborted) {
           clearInterval(intervalId);
@@ -139,6 +160,9 @@ export async function loader({ request }) {
               entry._id.toString()
             );
           }
+
+          // ── Actuator state ─────────────────────────────────────────────────
+          await sendActuatorState();
 
           // ── Device status ──────────────────────────────────────────────────
           await sendDeviceStatus();

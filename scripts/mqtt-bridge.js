@@ -272,6 +272,8 @@ mqttClient.on('message', async (topic, payload) => {
             { actuatorId },
             { $set: { confirmed: true, ackedAt: new Date() } }
           );
+          const doc = await db.collection('actuator_states').findOne({ actuatorId });
+          if (doc) broadcastLog('actuator-state', { states: { [actuatorId]: { state: doc.state, type: doc.type, confirmed: true } }, source: 'ack', ts: Date.now() });
         } else {
           // Mega rejected the command — revert to opposite state
           const doc = await db.collection('actuator_states').findOne({ actuatorId });
@@ -281,6 +283,7 @@ mqttClient.on('message', async (topic, payload) => {
               { actuatorId },
               { $set: { state: reverted, confirmed: true, ackedAt: new Date() } }
             );
+            broadcastLog('actuator-state', { states: { [actuatorId]: { state: reverted, type: doc.type, confirmed: true } }, source: 'ack', ts: Date.now() });
           }
         }
       }
@@ -320,17 +323,20 @@ mqttClient.on('message', async (topic, payload) => {
       // Upsert each actuator with its real hardware state. confirmed:true because
       // this comes directly from the Mega's pin state, not a commanded intent.
       const pairs = raw.split(',');
+      const stateMap = {};
       await Promise.all(pairs.map((pair) => {
         const [id, val] = pair.split(':');
         if (!id || val === undefined) return;
         const state = val.trim() === '1' ? 'ON' : 'OFF';
         const type  = id.startsWith('V') ? 'VALVE' : 'PUMP';
+        stateMap[id] = { state, type, confirmed: true };
         return db.collection('actuator_states').updateOne(
           { actuatorId: id },
           { $set: { actuatorId: id, type, state, confirmed: true, updatedAt: new Date(), source: 'mega' } },
           { upsert: true }
         );
       }));
+      broadcastLog('actuator-state', { states: stateMap, source: 'mega', ts: Date.now() });
     }
 
     if (topic === 'rainwater/sensors') {

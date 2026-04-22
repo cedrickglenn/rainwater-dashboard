@@ -13,6 +13,7 @@
 
 import { useRevalidator } from '@remix-run/react';
 import { useState, useEffect, useRef } from 'react';
+import { useActivityStream } from '~/lib/activity-stream';
 import { cn } from '~/lib/utils';
 import {
   Card,
@@ -259,6 +260,7 @@ function QuickActionCard({ action: qa, activeStates, onStart, onStop }) {
 
 export function ActuatorsPanel({ persisted, filterMode, backwashState }) {
   const revalidator = useRevalidator();
+  const { subscribeActuators } = useActivityStream();
 
   const [states, setStates] = useState(() => ({
     ...ALL_OFF_STATE,
@@ -295,6 +297,14 @@ export function ActuatorsPanel({ persisted, filterMode, backwashState }) {
     const id = setInterval(() => revalidator.revalidate(), 500);
     return () => clearInterval(id);
   }, [anyPending, revalidator]);
+
+  // SSE-driven updates: revalidate immediately when the bridge pushes a
+  // hardware state change, even when no UI command is pending.
+  useEffect(() => {
+    return subscribeActuators(() => {
+      revalidator.revalidate();
+    });
+  }, [subscribeActuators, revalidator]);
 
   const anyOn = Object.values(states).some(Boolean);
 
