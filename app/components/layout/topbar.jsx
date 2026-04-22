@@ -347,17 +347,21 @@ export function Topbar({
             </Form>
           </div>
         ) : (
-          <Link to="/login">
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 rounded-xl"
-              aria-label="Sign in"
-            >
-              <LogIn className="h-4 w-4" />
-              <span>Login</span>
-            </Button>
-          </Link>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link to="/login">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(touchButtonClasses, 'rounded-xl')}
+                  aria-label="Sign in"
+                >
+                  <LogIn className="h-6 w-6" />
+                </Button>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>Sign in</TooltipContent>
+          </Tooltip>
         )}
       </div>
     </header>
