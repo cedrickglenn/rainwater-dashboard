@@ -14,6 +14,11 @@ import { NavLink } from '@remix-run/react';
 import { cn } from '~/lib/utils';
 import { Button } from '~/components/ui/button';
 import { Separator } from '~/components/ui/separator';
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from '~/components/ui/tooltip';
 import { useActivityStream } from '~/lib/activity-stream';
 import { formatRelativeTime } from '~/lib/date-utils';
 import {
@@ -89,39 +94,48 @@ const NAV_ITEMS = [
 function NavItem({ item, isCollapsed, onClick }) {
   const Icon = item.icon;
 
-  return (
+  const link = (
     <NavLink
       to={item.href}
       onClick={onClick}
       className={({ isActive }) =>
         cn(
-          // BASE: 48px minimum height, generous padding for touch
           'flex min-h-[48px] items-center gap-3 rounded-xl px-4 py-3',
           'text-base font-medium transition-all',
           'touch-action-manipulation',
-          // Active state
           isActive
             ? 'bg-primary/10 text-primary hover:bg-primary/15'
             : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-          // Focus state for accessibility
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-          // Collapsed state (desktop only)
+          // Only collapse visually at the lg breakpoint
           isCollapsed && 'lg:justify-center lg:px-2'
         )
       }
     >
-      {/* Icon: 24px for mobile visibility */}
       <Icon className="h-6 w-6 flex-shrink-0" />
-      {!isCollapsed && (
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[15px] leading-tight">{item.name}</span>
-          <span className="hidden text-xs font-normal text-muted-foreground lg:block">
-            {item.description}
-          </span>
-        </div>
-      )}
+      {/* Always show label on mobile; hide only on desktop when collapsed */}
+      <div className={cn('flex flex-col gap-0.5', isCollapsed && 'lg:hidden')}>
+        <span className="text-[15px] leading-tight">{item.name}</span>
+        <span className="hidden text-xs font-normal text-muted-foreground lg:block">
+          {item.description}
+        </span>
+      </div>
     </NavLink>
   );
+
+  // Tooltip only meaningful when collapsed on desktop
+  if (isCollapsed) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{link}</TooltipTrigger>
+        <TooltipContent side="right" className="hidden lg:block">
+          {item.name}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return link;
 }
 
 /**
@@ -232,16 +246,15 @@ export function Sidebar({
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
               <RainSenseMark className="h-6 w-6" />
             </div>
-            {!isCollapsed && (
-              <div className="flex flex-col">
-                <span className="text-base font-bold tracking-tight">
-                  RainSense
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  Smart Rainwater Monitoring
-                </span>
-              </div>
-            )}
+            {/* Always show app name on mobile; hide only on desktop when collapsed */}
+            <div className={cn('flex flex-col', isCollapsed && 'lg:hidden')}>
+              <span className="text-base font-bold tracking-tight">
+                RainSense
+              </span>
+              <span className="text-xs text-muted-foreground">
+                Smart Rainwater Monitoring
+              </span>
+            </div>
           </div>
 
           {/* Mobile close button - 48px touch target */}
@@ -275,6 +288,7 @@ export function Sidebar({
 
         {/* Footer */}
         <div className="border-t p-3">
+          {/* Expanded: full system status panel */}
           {!isCollapsed && (
             <>
               <Separator className="mb-3" />
@@ -296,6 +310,44 @@ export function Sidebar({
                 </div>
               </div>
             </>
+          )}
+
+          {/* Collapsed desktop: two status dots centered with tooltips */}
+          {isCollapsed && (
+            <div className="mb-2 hidden flex-col items-center gap-2 lg:flex">
+              {[
+                { key: 'esp32', label: 'ESP32', status: deviceStatus.esp32 },
+                { key: 'mega', label: 'Arduino MEGA', status: deviceStatus.mega },
+              ].map(({ key, label, status }) => {
+                const dotColor = status.loading
+                  ? 'bg-muted-foreground/40'
+                  : status.online
+                    ? 'bg-green-500'
+                    : 'bg-red-500';
+                const statusText = status.loading
+                  ? 'Checking…'
+                  : status.online
+                    ? 'Online'
+                    : status.lastSeen
+                      ? formatRelativeTime(status.lastSeen)
+                      : 'Offline';
+                return (
+                  <Tooltip key={key}>
+                    <TooltipTrigger asChild>
+                      <span className="relative flex h-2.5 w-2.5 cursor-default">
+                        {status.online && !status.loading && (
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+                        )}
+                        <span className={cn('relative inline-flex h-2.5 w-2.5 rounded-full', dotColor)} />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      {label}: {statusText}
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            </div>
           )}
 
           {/* Collapse toggle (desktop only) - 44px touch target */}
