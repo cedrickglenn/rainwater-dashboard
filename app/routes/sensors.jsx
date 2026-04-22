@@ -54,20 +54,44 @@ export const meta = () => [
 
 const RANGE_HOURS = { '1h': 1, '24h': 24, '7d': 168, '30d': 720 };
 
+// Bucket size in ms per range — keeps chart point count manageable
+const BUCKET_MS = { '1h': 1 * 60 * 1000, '24h': 5 * 60 * 1000, '7d': 30 * 60 * 1000, '30d': 2 * 60 * 60 * 1000 };
+
 // ── Loader ────────────────────────────────────────────────────────────────
 export const loader = async ({ request }) => {
-  const url   = new URL(request.url);
-  const range = url.searchParams.get('range') ?? '24h';
-  const hours = RANGE_HOURS[range] ?? 24;
-  const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+  const url      = new URL(request.url);
+  const range    = url.searchParams.get('range') ?? '24h';
+  const hours    = RANGE_HOURS[range] ?? 24;
+  const bucketMs = BUCKET_MS[range] ?? BUCKET_MS['24h'];
+  const since    = new Date(Date.now() - hours * 60 * 60 * 1000);
 
   const db = await getDb();
   const [latestDoc, historyDocs, heartbeatDoc] = await Promise.all([
     db.collection('sensor_readings').find({}).sort({ timestamp: -1 }).limit(1).next(),
-    db.collection('sensor_readings')
-      .find({ timestamp: { $gte: since } })
-      .sort({ timestamp: 1 })
-      .toArray(),
+    db.collection('sensor_readings').aggregate([
+      { $match: { timestamp: { $gte: since } } },
+      {
+        $group: {
+          _id: {
+            $subtract: [
+              { $toLong: '$timestamp' },
+              { $mod: [{ $toLong: '$timestamp' }, bucketMs] },
+            ],
+          },
+          timestamp: { $last: '$timestamp' },
+          ph_c2:   { $avg: '$ph_c2' },
+          ph_c5:   { $avg: '$ph_c5' },
+          ph_c6:   { $avg: '$ph_c6' },
+          turb_c2: { $avg: '$turb_c2' },
+          turb_c5: { $avg: '$turb_c5' },
+          turb_c6: { $avg: '$turb_c6' },
+          temp_c2: { $avg: '$temp_c2' },
+          temp_c5: { $avg: '$temp_c5' },
+          temp_c6: { $avg: '$temp_c6' },
+        },
+      },
+      { $sort: { timestamp: 1 } },
+    ]).toArray(),
     db.collection('device_heartbeats').findOne({ source: 'esp32' }),
   ]);
 

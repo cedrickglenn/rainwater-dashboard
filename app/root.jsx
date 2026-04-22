@@ -76,13 +76,27 @@ export const loader = async ({ request }) => {
     getWeather(),
     getDb(),
   ]);
-  const alertCount = await db.collection('activity_logs').countDocuments({
-    level: { $in: ['WARN', 'ERR'] },
-    timestamp: { $gte: since },
-  });
+  const [alertCount, recentAlerts] = await Promise.all([
+    db.collection('activity_logs').countDocuments({
+      level: { $in: ['WARN', 'ERR'] },
+      timestamp: { $gte: since },
+    }),
+    db.collection('activity_logs')
+      .find({ level: { $in: ['WARN', 'ERR'] }, timestamp: { $gte: since } })
+      .sort({ timestamp: -1 })
+      .limit(10)
+      .toArray(),
+  ]);
 
   return json({
     alertCount,
+    notifications: recentAlerts.map((e) => ({
+      id:        e._id.toString(),
+      level:     e.level,
+      message:   e.message,
+      source:    e.source ?? e.category ?? 'SYSTEM',
+      timestamp: e.timestamp,
+    })),
     user,
     weather,
     vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? null,
@@ -93,7 +107,7 @@ export const loader = async ({ request }) => {
  * Root App Component
  */
 export default function App() {
-  const { alertCount, user, weather } = useLoaderData();
+  const { alertCount, notifications, user, weather } = useLoaderData();
   const location = useLocation();
   const isStandalone = location.pathname === '/login';
 
@@ -120,7 +134,7 @@ export default function App() {
       </head>
       <body className="min-h-screen bg-background font-sans antialiased">
         <ActivityStreamProvider>
-          {isStandalone ? <Outlet /> : <DashboardLayout alertCount={alertCount} user={user} weather={weather} />}
+          {isStandalone ? <Outlet /> : <DashboardLayout alertCount={alertCount} notifications={notifications} user={user} weather={weather} />}
         </ActivityStreamProvider>
         <Toaster />
         <ScrollRestoration />

@@ -23,7 +23,7 @@ import { TooltipProvider } from '~/components/ui/tooltip';
  * @param {Object} props - Component props
  * @param {number} props.alertCount - Number of alerts for topbar
  */
-export function DashboardLayout({ alertCount = 0, user = null, weather = null }) {
+export function DashboardLayout({ alertCount = 0, notifications = [], user = null, weather = null }) {
   const navigation = useNavigation();
   const isNavigating = navigation.state !== 'idle';
 
@@ -120,6 +120,7 @@ export function DashboardLayout({ alertCount = 0, user = null, weather = null })
             theme={theme}
             onThemeToggle={handleThemeToggle}
             alertCount={alertCount}
+            notifications={notifications}
             user={user}
             weather={weather}
           />

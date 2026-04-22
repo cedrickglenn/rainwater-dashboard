@@ -10,14 +10,15 @@
  * - Typography: larger app title on mobile (16px)
  */
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Form, Link } from '@remix-run/react';
 import { cn } from '~/lib/utils';
 import { Button } from '~/components/ui/button';
 import { Badge } from '~/components/ui/badge';
 import { Tooltip, TooltipTrigger, TooltipContent } from '~/components/ui/tooltip';
 import {
-  Menu, Bell, Sun, Moon, User, RefreshCw, LogIn, LogOut, ShieldCheck,
+  Menu, Bell, Sun, Moon, RefreshCw, LogIn, LogOut, ShieldCheck,
+  AlertTriangle, XCircle, CheckCircle, Info,
 } from 'lucide-react';
 
 // Meteocons SVG from /public/weather-icons/
@@ -41,16 +42,84 @@ function TopbarWeatherIcon({ name, className }) {
  * @param {number} props.alertCount - Number of unread alerts
  * @param {string} props.className - Additional CSS classes
  */
+function NotificationsPanel({ notifications, alertCount, onClose }) {
+  const levelIcon = (level) => {
+    if (level === 'ERR')  return <XCircle className="h-4 w-4 shrink-0 text-[#DC2645]" />;
+    if (level === 'WARN') return <AlertTriangle className="h-4 w-4 shrink-0 text-[#D97706]" />;
+    if (level === 'OK')   return <CheckCircle className="h-4 w-4 shrink-0 text-[#16A876]" />;
+    return <Info className="h-4 w-4 shrink-0 text-muted-foreground" />;
+  };
+
+  const formatTime = (ts) => {
+    const d = new Date(ts);
+    if (Number.isNaN(d.getTime())) return '';
+    const now = Date.now();
+    const diff = now - d.getTime();
+    if (diff < 60_000) return 'just now';
+    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  };
+
+  return (
+    <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border bg-card shadow-lg">
+      <div className="flex items-center justify-between border-b px-4 py-3">
+        <span className="text-sm font-semibold">Notifications</span>
+        {alertCount > 0 && (
+          <span className="text-xs text-muted-foreground">{alertCount} in last 24h</span>
+        )}
+      </div>
+      <div className="max-h-80 overflow-y-auto">
+        {notifications.length === 0 ? (
+          <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+            No warnings or errors in the last 24 hours
+          </div>
+        ) : (
+          <ul>
+            {notifications.map((n) => (
+              <li key={n.id} className="flex gap-3 border-b px-4 py-3 last:border-0">
+                <div className="mt-0.5">{levelIcon(n.level)}</div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-medium">{n.message}</p>
+                  <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <span className="uppercase">{n.source}</span>
+                    <span>·</span>
+                    <span>{formatTime(n.timestamp)}</span>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function Topbar({
   onMenuClick,
   theme = 'light',
   onThemeToggle,
   alertCount = 0,
+  notifications = [],
   user = null,
   weather = null,
   className,
 }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef(null);
+
+  useEffect(() => {
+    if (!notifOpen) return;
+    function handleClickOutside(e) {
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setNotifOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [notifOpen]);
 
   /**
    * Handle data refresh
@@ -186,29 +255,40 @@ export function Topbar({
         </Tooltip>
 
         {/* Notifications - 48px touch target, 24px icon */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(touchButtonClasses, 'relative rounded-xl')}
-              aria-label={`Notifications${alertCount > 0 ? `, ${alertCount} unread` : ''}`}
-            >
-              <Bell className="h-6 w-6" />
-              {alertCount > 0 && (
-                <Badge
-                  variant="destructive"
-                  className="absolute -right-0.5 top-1 flex h-5 w-5 items-center justify-center rounded-full p-0 text-[10px]"
-                >
-                  {alertCount > 9 ? '9+' : alertCount}
-                </Badge>
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            {alertCount > 0 ? `${alertCount} unread notification${alertCount > 1 ? 's' : ''}` : 'Notifications'}
-          </TooltipContent>
-        </Tooltip>
+        <div className="relative" ref={notifRef}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setNotifOpen((o) => !o)}
+                className={cn(touchButtonClasses, 'relative rounded-xl')}
+                aria-label={`Notifications${alertCount > 0 ? `, ${alertCount} alerts` : ''}`}
+                aria-expanded={notifOpen}
+              >
+                <Bell className="h-6 w-6" />
+                {alertCount > 0 && (
+                  <Badge
+                    variant="destructive"
+                    className="absolute -right-0.5 top-1 flex h-5 w-5 items-center justify-center rounded-full p-0 text-[10px]"
+                  >
+                    {alertCount > 9 ? '9+' : alertCount}
+                  </Badge>
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {alertCount > 0 ? `${alertCount} alert${alertCount > 1 ? 's' : ''} in last 24h` : 'Notifications'}
+            </TooltipContent>
+          </Tooltip>
+          {notifOpen && (
+            <NotificationsPanel
+              notifications={notifications}
+              alertCount={alertCount}
+              onClose={() => setNotifOpen(false)}
+            />
+          )}
+        </div>
 
         {/* User menu */}
         {user ? (

@@ -54,7 +54,7 @@ export function WeatherStrip({ weather, className }) {
         <img
           src={`/weather-icons/${current.icon}.svg`}
           alt=""
-          className="h-8 w-8 flex-shrink-0"
+          className="h-8 w-8 flex-shrink-0 weather-icon"
         />
         <span className="font-mono text-xl font-semibold tabular-nums leading-none">
           {current.temp}°
