@@ -327,10 +327,10 @@ function LiveReading({
         if (!res.ok) return;
         const data = await res.json();
         if (cancelled) return;
-        const cal = data[sensorKey];
+        const cal = data[sensorKey.toLowerCase()];
         setCalValue(cal != null ? Number(cal).toFixed(decimals) : null);
         if (rawKey) {
-          const raw = data[rawKey];
+          const raw = data[rawKey.toLowerCase()];
           const transformed = raw != null ? (rawTransform ? rawTransform(Number(raw)) : Number(raw)) : null;
           setRawValue(transformed != null ? transformed.toFixed(rawDecimals) : null);
         }
