@@ -91,6 +91,18 @@ export const action = async ({ request }) => {
   await requireAdmin(request);
 
   const formData = await request.formData();
+  const intent = formData.get('intent');
+
+  const { mqttPublish } = await import('~/lib/mqtt.server');
+
+  // Calibration mode toggle — suspends first flush state machine on the Mega
+  if (intent === 'cal_mode') {
+    const enable = formData.get('enable') === 'true';
+    const cmdLine = `C,CAL_MODE,${enable ? 'ON' : 'OFF'}`;
+    await mqttPublish('rainwater/commands', cmdLine);
+    return json({ ok: true, calMode: enable });
+  }
+
   const command = formData.get('command');
   const container = formData.get('container');
   const point = formData.get('point');
@@ -100,7 +112,6 @@ export const action = async ({ request }) => {
   if (point && point !== '') cmdLine += `,${point}`;
   if (value && value !== '') cmdLine += `,${value}`;
 
-  const { mqttPublish } = await import('~/lib/mqtt.server');
   await mqttPublish('rainwater/calibration/commands', cmdLine);
 
   return json({ ok: true, queued: cmdLine });
@@ -1066,6 +1077,100 @@ function CalibrationSummary() {
 }
 
 // ---------------------------------------------------------------------------
+// CalibrationModeToggle — suspends first flush state machine on the Mega
+// so the operator can manually hold V1/V8 open without the state machine
+// fighting them. Sends C,CAL_MODE,ON/OFF via rainwater/commands.
+// ---------------------------------------------------------------------------
+
+function CalibrationModeToggle() {
+  const fetcher = useFetcher();
+  const [calMode, setCalMode] = useState(false);
+
+  // Track optimistic state — flip locally on submit, confirm on response
+  const submitting = fetcher.state === 'submitting';
+  const pending = submitting;
+
+  function toggle() {
+    const next = !calMode;
+    setCalMode(next);
+    fetcher.submit(
+      { intent: 'cal_mode', enable: String(next) },
+      { method: 'post' }
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <Card
+        className={cn(
+          'border-2 transition-colors',
+          calMode
+            ? 'border-amber-400 bg-amber-50 dark:border-amber-600 dark:bg-amber-950/20'
+            : 'border-border'
+        )}
+      >
+        <CardContent className="flex items-center justify-between gap-4 p-4">
+          <div className="flex items-center gap-3">
+            <FlaskConical
+              className={cn(
+                'h-5 w-5 flex-shrink-0',
+                calMode ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'
+              )}
+            />
+            <div>
+              <p className="text-sm font-medium">
+                Calibration Mode
+                {calMode && (
+                  <span className="ml-2 rounded-full bg-amber-200 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-800 dark:text-amber-100">
+                    ACTIVE
+                  </span>
+                )}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {calMode
+                  ? 'First flush suspended — V1 and V8 are under full manual control.'
+                  : 'Enable to suspend the first flush state machine before calibrating level sensors.'}
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant={calMode ? 'default' : 'outline'}
+            disabled={pending}
+            onClick={toggle}
+            className={cn(
+              'flex-shrink-0 gap-2',
+              calMode && 'bg-amber-600 hover:bg-amber-700 dark:bg-amber-700 dark:hover:bg-amber-600'
+            )}
+          >
+            {pending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : calMode ? (
+              <CheckCircle2 className="h-4 w-4" />
+            ) : (
+              <FlaskConical className="h-4 w-4" />
+            )}
+            {calMode ? 'Disable' : 'Enable'}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {calMode && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <span>
+            Calibration mode is active. The first flush state machine is suspended and V1/V8
+            will not pulse automatically. Remember to disable calibration mode when finished
+            to restore normal operation.
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -1104,6 +1209,9 @@ export default function CalibrationPage() {
           </p>
         </CardContent>
       </Card>
+
+      {/* Calibration mode toggle */}
+      <CalibrationModeToggle />
 
       {/* Tabs */}
       <Tabs

@@ -9,7 +9,7 @@ When investigating sensor behaviour, calibration, MQTT/serial protocol, or timin
 | Project | Path | Role |
 |---------|------|------|
 | Arduino Mega firmware | `../rainwaterIOT/RainwaterIOT/` | Sensor reading, actuator control, calibration, EEPROM, serial protocol |
-| ESP32 bridge firmware | `../RainwaterIOT-ESP32/` | WiFi/MQTT bridge between Mega and HiveMQ cloud |
+| ESP32 bridge firmware | `../RainwaterIOT-ESP32/` | WiFi/MQTT bridge between Mega and EMQX cloud |
 
 Key files to reach for:
 - `rainwaterIOT/RainwaterIOT/src/sensors.cpp` — ultrasonic & sensor reading
@@ -27,7 +27,7 @@ Rainwater Dashboard is a smart rainwater harvesting and filtration system monito
 - **Framework**: Remix v2.15 (React + Node.js SSR)
 - **Frontend**: React 18, Tailwind CSS, Radix UI / shadcn components
 - **Database**: MongoDB Atlas (`MONGODB_URI` env var required)
-- **Real-time**: MQTT via HiveMQ Cloud (commands to device, ACKs from device)
+- **Real-time**: MQTT via EMQX Cloud (commands to device, ACKs from device)
 - **Auth**: bcryptjs + HTTP-only cookie sessions (7-day expiry)
 - **Charts**: Recharts
 - **Push Notifications**: Web Push API with VAPID keys
@@ -53,11 +53,9 @@ npm run seed       # Seed admin user to MongoDB
 MONGODB_URI=mongodb+srv://...
 DB_NAME=rainwateriot
 
-HIVEMQ_HOST=...s1.eu.hivemq.cloud      # No protocol/port prefix
-HIVEMQ_USERNAME=rainwaterIOT-DEV
-HIVEMQ_PASSWORD=...
-HIVEMQ_SUB_USERNAME=dashboard_subscriber
-HIVEMQ_SUB_PASSWORD=...
+MQTT_HOST=...emqx.cloud      # No protocol/port prefix — used by bridge as MQTT_HOST
+MQTT_USERNAME=...
+MQTT_PASSWORD=...
 
 SESSION_SECRET=<random-string>
 

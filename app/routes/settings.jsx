@@ -55,6 +55,8 @@ import {
   KeyRound,
   Eye,
   EyeOff,
+  Droplets,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 // Data
@@ -78,8 +80,18 @@ export const meta = () => {
 export const loader = async ({ request }) => {
   const { requireAdmin, listUsers, getUser } = await import('~/lib/auth.server');
   await requireAdmin(request);
-  const [users, currentUser] = await Promise.all([listUsers(), getUser(request)]);
-  return json({ settings: defaultSettings, system: systemStatus, users, currentUser });
+  const { getDb } = await import('~/lib/db.server');
+  const db = await getDb();
+  const [users, currentUser, ffConfigDoc] = await Promise.all([
+    listUsers(),
+    getUser(request),
+    db.collection('system_config').findOne({ key: 'first_flush' }),
+  ]);
+  const ffConfig = {
+    threshold: ffConfigDoc?.threshold ?? 0.5,
+    durationMin: ffConfigDoc?.durationMs != null ? ffConfigDoc.durationMs / 60000 : 5,
+  };
+  return json({ settings: defaultSettings, system: systemStatus, users, currentUser, ffConfig });
 };
 
 export const action = async ({ request }) => {
@@ -125,6 +137,23 @@ export const action = async ({ request }) => {
       newPassword:     formData.get('newPassword'),
     });
     return json(result.error ? { error: result.error } : { ok: true, message: 'Password updated' });
+  }
+
+  if (intent === 'ff_config') {
+    const threshold   = parseFloat(formData.get('threshold'));
+    const durationMin = parseFloat(formData.get('durationMin'));
+    const durationMs  = Math.round(durationMin * 60000);
+    const { getDb } = await import('~/lib/db.server');
+    const { mqttPublish } = await import('~/lib/mqtt.server');
+    const db = await getDb();
+    await db.collection('system_config').updateOne(
+      { key: 'first_flush' },
+      { $set: { key: 'first_flush', threshold, durationMs, updatedAt: new Date() } },
+      { upsert: true }
+    );
+    await mqttPublish('rainwater/commands', `C,FF_CONFIG,THRESHOLD,${threshold.toFixed(2)}`);
+    await mqttPublish('rainwater/commands', `C,FF_CONFIG,DURATION,${durationMs}`);
+    return json({ ok: true, message: 'First flush configuration updated' });
   }
 
   return json({ ok: true });
@@ -484,8 +513,9 @@ function PushNotificationToggle() {
 }
 
 export default function SettingsPage() {
-  const { settings, system } = useLoaderData();
+  const { settings, system, ffConfig } = useLoaderData();
   const fetcher = useFetcher();
+  const ffFetcher = useFetcher();
 
   // Local state for settings
   const [notifications, setNotifications] = useState(settings.notifications);
@@ -493,6 +523,8 @@ export default function SettingsPage() {
   const [dataLogging, setDataLogging] = useState(settings.dataLogging);
   const [calibration, setCalibration] = useState(settings.sensorCalibration);
   const [activeTab, setActiveTab] = useState('notifications');
+  const [ffThreshold, setFfThreshold] = useState(ffConfig.threshold);
+  const [ffDurationMin, setFfDurationMin] = useState(ffConfig.durationMin);
 
   // Handle notification toggle
   const handleNotificationChange = (key, value) => {
@@ -626,12 +658,18 @@ export default function SettingsPage() {
                   Users
                 </span>
               </SelectItem>
+              <SelectItem value="first_flush">
+                <span className="flex items-center gap-2">
+                  <Droplets className="h-4 w-4" />
+                  First Flush
+                </span>
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         {/* Desktop: Regular tabs */}
-        <TabsList className="hidden w-full grid-cols-6 sm:grid">
+        <TabsList className="hidden w-full grid-cols-7 sm:grid">
           <TabsTrigger value="notifications" className="gap-2">
             <Bell className="h-4 w-4" />
             Notifications
@@ -655,6 +693,10 @@ export default function SettingsPage() {
           <TabsTrigger value="users" className="gap-2">
             <Users className="h-4 w-4" />
             Users
+          </TabsTrigger>
+          <TabsTrigger value="first_flush" className="gap-2">
+            <Droplets className="h-4 w-4" />
+            First Flush
           </TabsTrigger>
         </TabsList>
 
@@ -1000,6 +1042,101 @@ export default function SettingsPage() {
         <TabsContent value="users" className="space-y-6">
           <UserManagement />
           <ChangePassword />
+        </TabsContent>
+
+        {/* First Flush Tab */}
+        <TabsContent value="first_flush" className="space-y-6">
+          <SettingsSection
+            icon={Droplets}
+            title="First Flush Configuration"
+            description="Tune the automatic rain diverter thresholds. Changes are sent live to the Arduino — no reflash needed."
+          >
+            {/* Flow trigger threshold */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Flow Trigger Threshold</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Minimum flow rate before rain is confirmed. Lower = more sensitive.
+                  </p>
+                </div>
+                <span className="font-mono text-sm font-semibold tabular-nums">
+                  {ffThreshold.toFixed(1)} L/min
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0.2}
+                max={5.0}
+                step={0.1}
+                value={ffThreshold}
+                onChange={(e) => setFfThreshold(parseFloat(e.target.value))}
+                className="w-full accent-primary"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>0.2 L/min (sensitive)</span>
+                <span>5.0 L/min (conservative)</span>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Flush duration */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Flush Duration</Label>
+                  <p className="text-xs text-muted-foreground">
+                    How long to divert rainwater to drainage before collecting. Longer = cleaner water.
+                  </p>
+                </div>
+                <span className="font-mono text-sm font-semibold tabular-nums">
+                  {ffDurationMin} min
+                </span>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={15}
+                step={1}
+                value={ffDurationMin}
+                onChange={(e) => setFfDurationMin(parseInt(e.target.value))}
+                className="w-full accent-primary"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>1 min (quick)</span>
+                <span>15 min (thorough)</span>
+              </div>
+            </div>
+
+            {ffFetcher.data?.ok && (
+              <div className="flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700 dark:bg-green-950/30 dark:text-green-400">
+                <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+                <span>First flush configuration updated and sent to device.</span>
+              </div>
+            )}
+            {ffFetcher.data?.error && (
+              <div className="flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-400">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <span>{ffFetcher.data.error}</span>
+              </div>
+            )}
+          </SettingsSection>
+
+          <div className="flex justify-end">
+            <Button
+              onClick={() =>
+                ffFetcher.submit(
+                  { intent: 'ff_config', threshold: String(ffThreshold), durationMin: String(ffDurationMin) },
+                  { method: 'post' }
+                )
+              }
+              disabled={ffFetcher.state === 'submitting'}
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {ffFetcher.state === 'submitting' ? 'Applying…' : 'Apply & Send to Device'}
+            </Button>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
