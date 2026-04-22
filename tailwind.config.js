@@ -68,12 +68,12 @@ export default {
           foreground: "hsl(var(--card-foreground))",
         },
 
-        // Custom water quality colors
+        // Water quality status colors — the ONLY sensor coloring.
+        // No per-sensor-type colors (no purple pH, no amber turbidity).
         water: {
-          safe: "#22c55e",      // Green for safe water
-          warning: "#f59e0b",   // Amber for warning
-          unsafe: "#ef4444",    // Red for unsafe
-          blue: "#0ea5e9",      // Sky blue for water theme
+          safe: "#16A876",
+          warning: "#D97706",
+          unsafe: "#DC2645",
         },
       },
 
@@ -87,14 +87,14 @@ export default {
       // Custom fonts
       fontFamily: {
         sans: [
-          "Inter",
+          "DM Sans",
           "-apple-system",
           "BlinkMacSystemFont",
           "Segoe UI",
           "Roboto",
           "sans-serif",
         ],
-        mono: ["JetBrains Mono", "Fira Code", "monospace"],
+        mono: ["DM Mono", "JetBrains Mono", "monospace"],
       },
 
       // Animations

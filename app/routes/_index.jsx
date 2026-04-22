@@ -1,39 +1,33 @@
 /**
- * Dashboard Index Page (Home)
+ * Dashboard Index Page (Home) — "Is the system working right now?"
  *
  * Layout (top → bottom):
- *  1. Pipeline status strip  — hardware online, first-flush state, filter mode, backwash
- *  2. Container pipeline row — C2 / C5 / C6 side-by-side (level + pH/turbidity/temp chips)
- *  3. Water quality hero     — overall status based on C6 (the only output that matters)
- *  4. Trend chart            — pH across C2, C5, C6 (shows filtration working)
- *  5. Weather + Activity     — side-by-side on desktop, stacked on mobile
+ *   1. Pipeline status strip         — hardware online, FF state, filter mode, backwash
+ *   2. Mode-aware pipeline diagram   — C2 → [C5] → C6, reflects active filter mode
+ *   3. Before/after trend charts     — pH (C2 vs C6) + Turbidity (C2 vs C6), 24h
+ *   4. Compact weather strip         — one-row weather, not a card
+ *   5. Activity log                  — full width
  */
 
 import { json } from '@remix-run/node';
 import { useLoaderData } from '@remix-run/react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 
-// Components
-import { PipelineStatus }    from '~/components/dashboard/pipeline-status';
-import { ContainerPanel }    from '~/components/dashboard/container-panel';
-import { WaterQualityStatus } from '~/components/dashboard/water-quality-status';
+import { PipelineStatus }     from '~/components/dashboard/pipeline-status';
+import { PipelineDiagram }    from '~/components/dashboard/pipeline-diagram';
 import { ContainerLineChart } from '~/components/dashboard/chart-wrapper';
-import { ActivityLog }       from '~/components/dashboard/activity-log';
-import { WeatherWidget }     from '~/components/dashboard/weather-widget';
-import { useActivityStream } from '~/lib/activity-stream';
+import { ActivityLog }        from '~/components/dashboard/activity-log';
+import { WeatherStrip }       from '~/components/dashboard/weather-strip';
+import { useActivityStream }  from '~/lib/activity-stream';
 
-// Data and utilities
-import { getDb }                  from '~/lib/db.server';
-import { getWeather }             from '~/lib/weather.server';
-import { calculateWaterQuality }  from '~/lib/water-quality';
-import { formatRelativeTime }     from '~/lib/date-utils';
+import { getDb }      from '~/lib/db.server';
+import { getWeather } from '~/lib/weather.server';
 
 export const meta = () => [
-  { title: 'Dashboard | RainWater Monitoring System' },
+  { title: 'Dashboard | RainSense' },
   { name: 'description', content: 'Monitor your smart rainwater harvesting system in real-time' },
 ];
 
-// ── Loader ────────────────────────────────────────────────────────────────
 export const loader = async () => {
   const db    = await getDb();
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -57,53 +51,35 @@ export const loader = async () => {
     getWeather(),
   ]);
 
-  // ── Per-container sensor snapshot ───────────────────────────────────────
-  // Level values from Mega are already calibrated percentages stored as 0–100.
-  // If calibration hasn't been done yet they come back as raw cm; the panel
-  // renders them as "—" when null, so no harm done.
   const containers = {
     C2: {
-      levelPct:    latestDoc?.lvl_c2    ?? null,
-      ph:          latestDoc?.ph_c2     ?? null,
-      turbidity:   latestDoc?.turb_c2   ?? null,
-      temperature: latestDoc?.temp_c2   ?? null,
+      levelPct:    latestDoc?.lvl_c2  ?? null,
+      ph:          latestDoc?.ph_c2   ?? null,
+      turbidity:   latestDoc?.turb_c2 ?? null,
+      temperature: latestDoc?.temp_c2 ?? null,
     },
     C5: {
-      levelPct:    latestDoc?.lvl_c5    ?? null,
-      ph:          latestDoc?.ph_c5     ?? null,
-      turbidity:   latestDoc?.turb_c5   ?? null,
-      temperature: latestDoc?.temp_c5   ?? null,
+      levelPct:    latestDoc?.lvl_c5  ?? null,
+      ph:          latestDoc?.ph_c5   ?? null,
+      turbidity:   latestDoc?.turb_c5 ?? null,
+      temperature: latestDoc?.temp_c5 ?? null,
     },
     C6: {
-      levelPct:    latestDoc?.lvl_c6    ?? null,
-      ph:          latestDoc?.ph_c6     ?? null,
-      turbidity:   latestDoc?.turb_c6   ?? null,
-      temperature: latestDoc?.temp_c6   ?? null,
+      levelPct:    latestDoc?.lvl_c6  ?? null,
+      ph:          latestDoc?.ph_c6   ?? null,
+      turbidity:   latestDoc?.turb_c6 ?? null,
+      temperature: latestDoc?.temp_c6 ?? null,
     },
   };
 
-  // ── Water quality — evaluated against C6 (final potable output) ─────────
-  const waterQuality = calculateWaterQuality({
-    ph:          containers.C6.ph,
-    turbidity:   containers.C6.turbidity,
-    temperature: containers.C6.temperature,
-  });
-
-  // ── Historical data for trend chart (all three containers) ───────────────
   const historical = historyDocs.map((doc) => ({
     timestamp: doc.timestamp,
-    ph_c2:     doc.ph_c2     ?? null,
-    ph_c5:     doc.ph_c5     ?? null,
-    ph_c6:     doc.ph_c6     ?? null,
-    turb_c2:   doc.turb_c2   ?? null,
-    turb_c5:   doc.turb_c5   ?? null,
-    turb_c6:   doc.turb_c6   ?? null,
-    temp_c2:   doc.temp_c2   ?? null,
-    temp_c5:   doc.temp_c5   ?? null,
-    temp_c6:   doc.temp_c6   ?? null,
+    ph_c2:   doc.ph_c2   ?? null,
+    ph_c6:   doc.ph_c6   ?? null,
+    turb_c2: doc.turb_c2 ?? null,
+    turb_c6: doc.turb_c6 ?? null,
   }));
 
-  // ── Pipeline state ───────────────────────────────────────────────────────
   const pipeline = {
     ffState:       latestDoc?.ff_state       ?? 0,
     filterMode:    latestDoc?.filter_mode    ?? 0,
@@ -112,9 +88,7 @@ export const loader = async () => {
 
   return json({
     containers,
-    waterQuality,
-    hasData:      !!latestDoc,
-    lastUpdated:  latestDoc?.timestamp ?? null,
+    hasData:       !!latestDoc,
     pipeline,
     lastHeartbeat: heartbeatDoc?.lastSeen ?? null,
     historical,
@@ -131,12 +105,9 @@ export const loader = async () => {
   });
 };
 
-// ── Page Component ────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const {
     containers,
-    waterQuality,
-    lastUpdated,
     pipeline,
     lastHeartbeat,
     historical,
@@ -177,69 +148,44 @@ export default function DashboardPage() {
         lastHeartbeat={lastHeartbeat}
       />
 
-      {/* 2. Container pipeline row: C2 → C5 → C6 */}
+      {/* 2. Mode-aware pipeline diagram */}
+      <PipelineDiagram containers={containers} filterMode={pipeline.filterMode} />
+
+      {/* 3. Before/after trend charts — C2 raw vs C6 output */}
       <section className="space-y-2">
-        <h2 className="text-base font-semibold text-muted-foreground uppercase tracking-wide text-xs">
-          Filtration Pipeline
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Filtration Effectiveness — Last 24 Hours
         </h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-          <ContainerPanel
-            container="C2"
-            levelPct={containers.C2.levelPct}
-            ph={containers.C2.ph}
-            turbidity={containers.C2.turbidity}
-            temperature={containers.C2.temperature}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <ContainerLineChart
+            title="pH · Raw vs Output"
+            data={historical}
+            metric="ph"
+            unit="pH"
+            mode="beforeAfter"
+            height={220}
           />
-          <ContainerPanel
-            container="C5"
-            levelPct={containers.C5.levelPct}
-            ph={containers.C5.ph}
-            turbidity={containers.C5.turbidity}
-            temperature={containers.C5.temperature}
-          />
-          <ContainerPanel
-            container="C6"
-            levelPct={containers.C6.levelPct}
-            ph={containers.C6.ph}
-            turbidity={containers.C6.turbidity}
-            temperature={containers.C6.temperature}
+          <ContainerLineChart
+            title="Turbidity · Raw vs Output"
+            data={historical}
+            metric="turb"
+            unit="NTU"
+            mode="beforeAfter"
+            height={220}
           />
         </div>
       </section>
 
-      {/* 3. Water quality hero — based on C6 (final potable output) */}
-      <WaterQualityStatus
-        status={waterQuality.overall}
-        lastChecked={lastUpdated ? formatRelativeTime(lastUpdated) : null}
-      />
+      {/* 4. Compact weather strip */}
+      <WeatherStrip weather={weather} />
 
-      {/* 4. Trend chart — pH across all three containers */}
+      {/* 5. Activity log — full width */}
       <section className="space-y-2">
-        <h2 className="text-base font-semibold text-muted-foreground uppercase tracking-wide text-xs">
-          Trends — Last 24 Hours
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Recent Activity
         </h2>
-        <ContainerLineChart
-          title="pH — C2 vs C5 vs C6"
-          data={historical}
-          metric="ph"
-          unit="pH"
-          height={240}
-          className="sm:h-[280px] lg:h-[300px]"
-        />
+        <ActivityLog logs={logs} liveStatus={liveStatus} />
       </section>
-
-      {/* 5. Weather + Activity */}
-      <div className="grid gap-5 lg:grid-cols-2 min-w-0 overflow-hidden lg:items-stretch">
-        <section className="flex flex-col space-y-3 min-w-0">
-          <h2 className="text-lg font-semibold">Weather</h2>
-          <WeatherWidget weather={weather} className="flex-1" />
-        </section>
-
-        <section className="flex flex-col space-y-3 min-w-0">
-          <h2 className="text-lg font-semibold">Recent Activity</h2>
-          <ActivityLog logs={logs} liveStatus={liveStatus} className="flex-1 lg:min-h-0" />
-        </section>
-      </div>
     </div>
   );
 }

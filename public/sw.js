@@ -1,5 +1,5 @@
 /**
- * Service Worker — RainWater Dashboard
+ * Service Worker — RainSense Dashboard
  *
  * Handles Web Push notifications only.
  * No caching or offline strategy — app is always-online IoT dashboard.
@@ -20,7 +20,7 @@ self.addEventListener('activate', (event) => {
  * Payload JSON shape: { title, body, icon, tag, url }
  */
 self.addEventListener('push', (event) => {
-  let data = { title: 'RainWater Dashboard', body: 'System alert', tag: 'rainwater' };
+  let data = { title: 'RainSense Dashboard', body: 'System alert', tag: 'rainwater' };
 
   if (event.data) {
     try {

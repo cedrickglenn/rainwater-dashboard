@@ -2,10 +2,11 @@ import { json } from '@remix-run/node';
 import { Form, Link, useActionData, useNavigation } from '@remix-run/react';
 import { Droplets, Lock, User, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
+import { RainSenseMark } from '~/components/layout/sidebar';
 import { Button } from '~/components/ui/button';
 import { cn } from '~/lib/utils';
 
-export const meta = () => [{ title: 'Login | RainWater Dashboard' }];
+export const meta = () => [{ title: 'Login | RainSense' }];
 
 export const loader = async ({ request }) => {
   const { requireGuest } = await import('~/lib/auth.server');
@@ -15,13 +16,16 @@ export const loader = async ({ request }) => {
 
 export const action = async ({ request }) => {
   const { login, createUserSession } = await import('~/lib/auth.server');
-  const formData   = await request.formData();
-  const username   = formData.get('username');
-  const password   = formData.get('password');
+  const formData = await request.formData();
+  const username = formData.get('username');
+  const password = formData.get('password');
   const redirectTo = formData.get('redirectTo') || '/';
 
   if (!username || !password) {
-    return json({ error: 'Username and password are required' }, { status: 400 });
+    return json(
+      { error: 'Username and password are required' },
+      { status: 400 }
+    );
   }
 
   const user = await login({ username, password });
@@ -33,28 +37,30 @@ export const action = async ({ request }) => {
 };
 
 export default function LoginPage() {
-  const actionData  = useActionData();
-  const navigation  = useNavigation();
+  const actionData = useActionData();
+  const navigation = useNavigation();
   const isSubmitting = navigation.state === 'submitting';
   const [showPassword, setShowPassword] = useState(false);
 
   // Read redirectTo from URL
-  const redirectTo = typeof window !== 'undefined'
-    ? new URL(window.location.href).searchParams.get('redirectTo') || '/'
-    : '/';
+  const redirectTo =
+    typeof window !== 'undefined'
+      ? new URL(window.location.href).searchParams.get('redirectTo') || '/'
+      : '/';
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-8">
-
         {/* Logo */}
         <div className="flex flex-col items-center gap-3">
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg">
-            <Droplets className="h-9 w-9" />
+            <RainSenseMark className="h-9 w-9" />
           </div>
           <div className="text-center">
-            <h1 className="text-2xl font-bold tracking-tight">RainWater</h1>
-            <p className="text-sm text-muted-foreground">Sign in to access admin controls</p>
+            <h1 className="text-2xl font-bold tracking-tight">RainSense</h1>
+            <p className="text-sm text-muted-foreground">
+              Sign in to access admin controls
+            </p>
           </div>
         </div>
 
@@ -118,7 +124,11 @@ export default function LoginPage() {
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 tabIndex={-1}
               >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
               </button>
             </div>
           </div>
@@ -142,7 +152,7 @@ export default function LoginPage() {
         <div className="text-center">
           <Link
             to="/"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to Dashboard

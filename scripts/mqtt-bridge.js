@@ -187,9 +187,9 @@ async function dispatchPush(db, entry) {
   const subscriptions = await db.collection('push_subscriptions').find({}).toArray();
   if (subscriptions.length === 0) return;
 
-  const title = entry.type === 'error'   ? 'RainWater — Error'
-              : entry.type === 'warning' ? 'RainWater — Warning'
-              : 'RainWater — System';
+  const title = entry.type === 'error'   ? 'RainSense — Error'
+              : entry.type === 'warning' ? 'RainSense — Warning'
+              : 'RainSense — System';
 
   const payload = JSON.stringify({
     title,

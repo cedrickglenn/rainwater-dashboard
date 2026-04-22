@@ -112,7 +112,7 @@ export function Topbar({
           to="/"
           className="truncate text-base font-semibold sm:hidden hover:opacity-75 transition-opacity"
         >
-          RainWater
+          RainSense
         </Link>
 
       </div>

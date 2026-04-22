@@ -1,7 +1,7 @@
 /**
  * Sidebar Component
  * Main navigation sidebar for the dashboard
- * 
+ *
  * MOBILE-FIRST BEHAVIOR:
  * - Mobile: Full-screen drawer/sheet pattern (not thin sidebar)
  * - Drawer slides in from left with backdrop overlay
@@ -21,12 +21,35 @@ import {
   Gauge,
   History,
   Settings,
-  SlidersHorizontal,
-  Wrench,
-  Droplets,
   ChevronLeft,
   X,
 } from 'lucide-react';
+
+/**
+ * RainSense logo mark — teardrop + ECG pulse line.
+ * Uses currentColor so it inherits from text-primary-foreground in the
+ * sidebar badge.
+ */
+export function RainSenseMark({ className }) {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M16 2 C16 2 6 14 6 20 C6 25.523 10.477 30 16 30 C21.523 30 26 25.523 26 20 C26 14 16 2 16 2 Z" />
+      <path
+        d="M9 21 H12 L13.5 18 L15 24 L17 17 L18.5 21 H23"
+        fill="none"
+        stroke="hsl(var(--primary))"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 /**
  * Navigation items configuration
@@ -37,41 +60,24 @@ const NAV_ITEMS = [
     href: '/',
     icon: LayoutDashboard,
     description: 'Overview and status',
-    adminOnly: false,
   },
   {
     name: 'Sensors',
     href: '/sensors',
     icon: Gauge,
     description: 'Sensor readings',
-    adminOnly: false,
   },
   {
     name: 'History',
     href: '/history',
     icon: History,
     description: 'Logs and data',
-    adminOnly: false,
-  },
-  {
-    name: 'Actuators',
-    href: '/actuators',
-    icon: Wrench,
-    description: 'Manual pump & valve control',
-    minRole: 'operator',
-  },
-  {
-    name: 'Calibration',
-    href: '/calibration',
-    icon: SlidersHorizontal,
-    description: 'Sensor calibration',
-    minRole: 'admin',
   },
   {
     name: 'Settings',
     href: '/settings',
     icon: Settings,
-    description: 'System settings',
+    description: 'Controls & configuration',
     minRole: 'admin',
   },
 ];
@@ -90,13 +96,13 @@ function NavItem({ item, isCollapsed, onClick }) {
       className={({ isActive }) =>
         cn(
           // BASE: 48px minimum height, generous padding for touch
-          'flex items-center gap-3 rounded-xl px-4 py-3 min-h-[48px]',
+          'flex min-h-[48px] items-center gap-3 rounded-xl px-4 py-3',
           'text-base font-medium transition-all',
           'touch-action-manipulation',
           // Active state
           isActive
             ? 'bg-primary/10 text-primary hover:bg-primary/15'
-            : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+            : 'text-muted-foreground hover:bg-accent hover:text-foreground',
           // Focus state for accessibility
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
           // Collapsed state (desktop only)
@@ -109,7 +115,7 @@ function NavItem({ item, isCollapsed, onClick }) {
       {!isCollapsed && (
         <div className="flex flex-col gap-0.5">
           <span className="text-[15px] leading-tight">{item.name}</span>
-          <span className="text-xs font-normal text-muted-foreground hidden lg:block">
+          <span className="hidden text-xs font-normal text-muted-foreground lg:block">
             {item.description}
           </span>
         </div>
@@ -122,7 +128,13 @@ function NavItem({ item, isCollapsed, onClick }) {
  * DeviceStatusDot — a single device row in the System Status panel.
  */
 function DeviceStatusDot({ label, online, lastSeen, loading }) {
-  const statusText = loading ? 'Checking…' : online ? 'Online' : lastSeen ? formatRelativeTime(lastSeen) : 'Offline';
+  const statusText = loading
+    ? 'Checking…'
+    : online
+      ? 'Online'
+      : lastSeen
+        ? formatRelativeTime(lastSeen)
+        : 'Offline';
 
   return (
     <div className="flex items-start gap-2">
@@ -134,18 +146,28 @@ function DeviceStatusDot({ label, online, lastSeen, loading }) {
         <span
           className={cn(
             'relative inline-flex h-2.5 w-2.5 rounded-full',
-            loading ? 'bg-muted-foreground/40' : online ? 'bg-green-500' : 'bg-red-500'
+            loading
+              ? 'bg-muted-foreground/40'
+              : online
+                ? 'bg-green-500'
+                : 'bg-red-500'
           )}
         />
       </span>
 
       {/* Label + status stacked — never compete for horizontal space */}
       <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="text-sm leading-tight text-muted-foreground">{label}</span>
+        <span className="text-sm leading-tight text-muted-foreground">
+          {label}
+        </span>
         <span
           className={cn(
             'text-[11px] leading-tight',
-            loading ? 'text-muted-foreground' : online ? 'text-green-600 dark:text-green-400' : 'text-red-500'
+            loading
+              ? 'text-muted-foreground'
+              : online
+                ? 'text-green-600 dark:text-green-400'
+                : 'text-red-500'
           )}
         >
           {statusText}
@@ -171,7 +193,7 @@ export function Sidebar({
   user = null,
 }) {
   const ROLE_LEVEL = { admin: 3, operator: 2, viewer: 1 };
-  const userLevel  = ROLE_LEVEL[user?.role] ?? 0;
+  const userLevel = ROLE_LEVEL[user?.role] ?? 0;
   const { deviceStatus } = useActivityStream();
   return (
     <>
@@ -203,18 +225,20 @@ export function Sidebar({
           <div
             className={cn(
               'flex items-center gap-3',
-              isCollapsed && 'lg:justify-center lg:w-full'
+              isCollapsed && 'lg:w-full lg:justify-center'
             )}
           >
             {/* Logo - 40px touch target */}
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <Droplets className="h-6 w-6" />
+              <RainSenseMark className="h-6 w-6" />
             </div>
             {!isCollapsed && (
               <div className="flex flex-col">
-                <span className="text-base font-bold">RainWater</span>
+                <span className="text-base font-bold tracking-tight">
+                  RainSense
+                </span>
                 <span className="text-xs text-muted-foreground">
-                  Dashboard
+                  Smart Rainwater Monitoring
                 </span>
               </div>
             )}
@@ -225,7 +249,7 @@ export function Sidebar({
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="h-12 w-12 min-h-[48px] min-w-[48px] lg:hidden rounded-xl"
+            className="h-12 min-h-[48px] w-12 min-w-[48px] rounded-xl lg:hidden"
             aria-label="Close navigation menu"
           >
             <X className="h-6 w-6" />
@@ -233,9 +257,12 @@ export function Sidebar({
         </div>
 
         {/* Navigation - generous spacing between items */}
-        <nav className="flex-1 space-y-1.5 p-3 overflow-y-auto">
+        <nav className="flex-1 space-y-1.5 overflow-y-auto p-3">
           <div className="space-y-1.5">
-            {NAV_ITEMS.filter((item) => !item.minRole || userLevel >= (ROLE_LEVEL[item.minRole] ?? 0)).map((item) => (
+            {NAV_ITEMS.filter(
+              (item) =>
+                !item.minRole || userLevel >= (ROLE_LEVEL[item.minRole] ?? 0)
+            ).map((item) => (
               <NavItem
                 key={item.href}
                 item={item}
@@ -252,7 +279,7 @@ export function Sidebar({
             <>
               <Separator className="mb-3" />
               <div className="rounded-xl bg-muted/50 p-4">
-                <p className="text-sm font-medium mb-3">System Status</p>
+                <p className="mb-3 text-sm font-medium">System Status</p>
                 <div className="space-y-2">
                   <DeviceStatusDot
                     label="ESP32"
@@ -277,7 +304,7 @@ export function Sidebar({
             size="sm"
             onClick={onToggleCollapse}
             className={cn(
-              'mt-3 w-full hidden lg:flex h-11 min-h-[44px]',
+              'mt-3 hidden h-11 min-h-[44px] w-full lg:flex',
               isCollapsed && 'justify-center'
             )}
             aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}

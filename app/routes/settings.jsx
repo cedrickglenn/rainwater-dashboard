@@ -1,13 +1,21 @@
 /**
- * Settings Page
- * System configuration and preferences
+ * Settings Page — admin-only hub for system configuration and hardware controls.
+ *
+ * Tabs (in order):
+ *   1. Actuators    — pump/valve control (operator+)
+ *   2. Calibration  — sensor calibration (admin)
+ *   3. First Flush  — flow threshold + duration, MQTT to Mega
+ *   4. Users        — user management + change password
+ *   5. Notifications — push notifications only
+ *
+ * The `?tab=` search param deep-links into a specific tab — used by the
+ * /actuators and /calibration routes that redirect here.
  */
 
 import { json } from '@remix-run/node';
-import { useLoaderData, useFetcher, useRouteLoaderData } from '@remix-run/react';
+import { useLoaderData, useFetcher, useRouteLoaderData, useSearchParams } from '@remix-run/react';
 import { useState, useEffect, useCallback } from 'react';
 import { Input } from '~/components/ui/input';
-import { cn } from '~/lib/utils';
 import {
   Card,
   CardContent,
@@ -18,7 +26,6 @@ import {
 import { Button } from '~/components/ui/button';
 import { Switch } from '~/components/ui/switch';
 import { Label } from '~/components/ui/label';
-import { Badge } from '~/components/ui/badge';
 import { Separator } from '~/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs';
 import {
@@ -30,68 +37,70 @@ import {
 } from '~/components/ui/select';
 import { Tooltip, TooltipTrigger, TooltipContent } from '~/components/ui/tooltip';
 import {
-  Settings,
   Bell,
-  Gauge,
-  Palette,
-  Database,
-  Shield,
   Save,
-  RotateCcw,
-  Mail,
-  Smartphone,
-  MessageSquare,
-  Sun,
-  Moon,
-  Monitor,
-  Clock,
-  HardDrive,
-  Wifi,
-  CheckCircle2,
-  AlertCircle,
-  Users,
   UserPlus,
   Trash2,
   KeyRound,
   Eye,
   EyeOff,
   Droplets,
+  Users,
+  CheckCircle2,
+  AlertCircle,
   SlidersHorizontal,
+  FlaskConical,
 } from 'lucide-react';
 
-// Data
-import { defaultSettings, systemStatus } from '~/data/mock-data';
-import { SENSOR_THRESHOLDS } from '~/lib/water-quality';
-import { formatDate } from '~/lib/date-utils';
+import { ActuatorsPanel } from '~/components/actuators-panel';
+import { CalibrationPanel } from '~/components/calibration-panel';
 
-/**
- * Meta function for SEO
- */
-export const meta = () => {
-  return [
-    { title: 'Settings | RainWater Monitoring System' },
-    { name: 'description', content: 'Configure your monitoring system' },
-  ];
-};
+export const meta = () => [
+  { title: 'Settings | RainSense' },
+  { name: 'description', content: 'Configure your monitoring system' },
+];
 
-/**
- * Loader function
- */
+const STALE_PENDING_MS = 5000;
+
 export const loader = async ({ request }) => {
   const { requireAdmin, listUsers, getUser } = await import('~/lib/auth.server');
   await requireAdmin(request);
   const { getDb } = await import('~/lib/db.server');
   const db = await getDb();
-  const [users, currentUser, ffConfigDoc] = await Promise.all([
+
+  const [users, currentUser, ffConfigDoc, actuatorDocs, latestSensor] = await Promise.all([
     listUsers(),
     getUser(request),
     db.collection('system_config').findOne({ key: 'first_flush' }),
+    db.collection('actuator_states').find({}).toArray(),
+    db.collection('sensor_readings').findOne({}, { sort: { timestamp: -1 } }),
   ]);
+
   const ffConfig = {
     threshold: ffConfigDoc?.threshold ?? 0.5,
     durationMin: ffConfigDoc?.durationMs != null ? ffConfigDoc.durationMs / 60000 : 5,
   };
-  return json({ settings: defaultSettings, system: systemStatus, users, currentUser, ffConfig });
+
+  const now = Date.now();
+  const persisted = Object.fromEntries(
+    actuatorDocs.map((d) => {
+      const isStale =
+        !d.confirmed &&
+        d.updatedAt &&
+        now - new Date(d.updatedAt).getTime() > STALE_PENDING_MS;
+      const confirmed = isStale ? true : (d.confirmed ?? true);
+      return [d.actuatorId, { on: d.state === 'ON', confirmed }];
+    })
+  );
+
+  return json({
+    users,
+    currentUser,
+    ffConfig,
+    persisted,
+    filterMode:    latestSensor?.filter_mode    ?? 0,
+    backwashState: latestSensor?.backwash_state ?? 0,
+  });
 };
 
 export const action = async ({ request }) => {
@@ -99,9 +108,9 @@ export const action = async ({ request }) => {
     await import('~/lib/auth.server');
   await requireAdmin(request);
 
-  const formData      = await request.formData();
-  const intent        = formData.get('intent');
-  const currentUser   = await getUser(request);
+  const formData    = await request.formData();
+  const intent      = formData.get('intent');
+  const currentUser = await getUser(request);
 
   if (intent === 'create_user') {
     const result = await createUser({
@@ -159,9 +168,6 @@ export const action = async ({ request }) => {
   return json({ ok: true });
 };
 
-/**
- * Settings section component
- */
 function SettingsSection({ icon: Icon, title, description, children }) {
   return (
     <Card>
@@ -177,35 +183,6 @@ function SettingsSection({ icon: Icon, title, description, children }) {
   );
 }
 
-/**
- * Settings toggle row
- */
-function SettingToggle({ id, label, description, checked, onCheckedChange }) {
-  return (
-    <div className="flex items-center justify-between">
-      <div className="space-y-0.5">
-        <Label htmlFor={id} className="text-sm font-medium">
-          {label}
-        </Label>
-        {description && (
-          <p className="text-xs text-muted-foreground">{description}</p>
-        )}
-      </div>
-      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
-    </div>
-  );
-}
-
-/**
- * Settings Page Component
- */
-const ROLE_LABELS = { admin: 'Admin', operator: 'Operator', viewer: 'Viewer' };
-const ROLE_COLORS = {
-  admin:    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-  operator: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  viewer:   'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400',
-};
-
 function UserManagement() {
   const { users, currentUser } = useLoaderData();
   const fetcher = useFetcher();
@@ -218,7 +195,6 @@ function UserManagement() {
 
   return (
     <SettingsSection icon={Users} title="User Management" description="Manage who can access this dashboard">
-      {/* User list */}
       <div className="space-y-2">
         {users.map((u) => (
           <div key={u.username} className="flex items-center justify-between gap-3 rounded-lg border px-4 py-3">
@@ -239,7 +215,6 @@ function UserManagement() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {/* Role selector */}
               <fetcher.Form method="post">
                 <input type="hidden" name="intent" value="update_role" />
                 <input type="hidden" name="username" value={u.username} />
@@ -265,7 +240,6 @@ function UserManagement() {
                 </Select>
               </fetcher.Form>
 
-              {/* Delete */}
               {u.username !== currentUser.username && (
                 <fetcher.Form method="post" onSubmit={(e) => {
                   if (!confirm(`Delete user "${u.username}"?`)) e.preventDefault();
@@ -287,7 +261,6 @@ function UserManagement() {
         ))}
       </div>
 
-      {/* Add user form */}
       {showAdd ? (
         <fetcher.Form method="post" className="space-y-3 rounded-lg border p-4"
           onSubmit={() => { setShowAdd(false); setNewPassword(''); }}>
@@ -368,7 +341,7 @@ function ChangePassword() {
           </div>
         </div>
         {result?.error   && <p className="text-xs text-destructive">{result.error}</p>}
-        {result?.message && <p className="text-xs text-green-600">{result.message}</p>}
+        {result?.message && <p className="text-xs text-[color:var(--water-safe)]">{result.message}</p>}
         <Button type="submit" size="sm" disabled={isLoading}>
           <KeyRound className="mr-2 h-4 w-4" />
           Update Password
@@ -378,10 +351,6 @@ function ChangePassword() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Push notification helpers
-// ---------------------------------------------------------------------------
-
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -389,19 +358,13 @@ function urlBase64ToUint8Array(base64String) {
   return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
 }
 
-/**
- * Standalone push toggle that manages its own browser permission + SW subscription state.
- * Reads vapidPublicKey from the root loader via useRouteLoaderData.
- */
 function PushNotificationToggle() {
   const root = useRouteLoaderData('root');
   const vapidPublicKey = root?.vapidPublicKey ?? null;
 
-  // 'unsupported' | 'loading' | 'denied' | 'subscribed' | 'unsubscribed'
   const [status, setStatus] = useState('loading');
   const [busy, setBusy] = useState(false);
 
-  // On mount, check current SW subscription state
   useEffect(() => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       setStatus('unsupported');
@@ -512,109 +475,51 @@ function PushNotificationToggle() {
   );
 }
 
+const VALID_TABS = ['actuators', 'calibration', 'first_flush', 'users', 'notifications'];
+
+const TABS = [
+  { value: 'actuators',     label: 'Actuators',     Icon: SlidersHorizontal },
+  { value: 'calibration',   label: 'Calibration',   Icon: FlaskConical },
+  { value: 'first_flush',   label: 'First Flush',   Icon: Droplets },
+  { value: 'users',         label: 'Users',         Icon: Users },
+  { value: 'notifications', label: 'Notifications', Icon: Bell },
+];
+
 export default function SettingsPage() {
-  const { settings, system, ffConfig } = useLoaderData();
-  const fetcher = useFetcher();
+  const { ffConfig, persisted, filterMode, backwashState } = useLoaderData();
   const ffFetcher = useFetcher();
 
-  // Local state for settings
-  const [notifications, setNotifications] = useState(settings.notifications);
-  const [display, setDisplay] = useState(settings.display);
-  const [dataLogging, setDataLogging] = useState(settings.dataLogging);
-  const [calibration, setCalibration] = useState(settings.sensorCalibration);
-  const [activeTab, setActiveTab] = useState('notifications');
-  const [ffThreshold, setFfThreshold] = useState(ffConfig.threshold);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = VALID_TABS.includes(searchParams.get('tab'))
+    ? searchParams.get('tab')
+    : 'actuators';
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  const [ffThreshold, setFfThreshold]     = useState(ffConfig.threshold);
   const [ffDurationMin, setFfDurationMin] = useState(ffConfig.durationMin);
 
-  // Handle notification toggle
-  const handleNotificationChange = (key, value) => {
-    setNotifications((prev) => ({ ...prev, [key]: value }));
-  };
-
-  // Handle display change
-  const handleDisplayChange = (key, value) => {
-    setDisplay((prev) => ({ ...prev, [key]: value }));
-  };
-
-  // Handle data logging change
-  const handleDataLoggingChange = (key, value) => {
-    setDataLogging((prev) => ({ ...prev, [key]: value }));
-  };
-
-  // Handle calibration change
-  const handleCalibrationChange = (key, value) => {
-    setCalibration((prev) => ({ ...prev, [key]: parseFloat(value) || 0 }));
-  };
-
-  // Save settings
-  const handleSave = (section) => {
-    fetcher.submit({ intent: section }, { method: 'post' });
-  };
-
-  const isLoading = fetcher.state === 'submitting';
+  // Keep `?tab=...` in sync with the active tab without adding history entries.
+  useEffect(() => {
+    const current = searchParams.get('tab');
+    if (current !== activeTab) {
+      const next = new URLSearchParams(searchParams);
+      next.set('tab', activeTab);
+      setSearchParams(next, { replace: true });
+    }
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
           Settings
         </h1>
         <p className="text-muted-foreground">
-          Configure your rainwater monitoring system preferences.
+          Hardware controls, calibration, and user management.
         </p>
       </div>
 
-      {/* System status banner */}
-      <Card
-        className={cn(
-          'border-2',
-          system.systemHealth === 'good'
-            ? 'border-green-500/50 bg-green-50 dark:bg-green-950/20'
-            : 'border-amber-500/50 bg-amber-50 dark:bg-amber-950/20'
-        )}
-      >
-        <CardContent className="p-4">
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-            <div className="flex items-center gap-3">
-              {system.systemHealth === 'good' ? (
-                <CheckCircle2 className="h-8 w-8 text-green-500" />
-              ) : (
-                <AlertCircle className="h-8 w-8 text-amber-500" />
-              )}
-              <div>
-                <p className="font-medium">
-                  System Status:{' '}
-                  {system.systemHealth === 'good'
-                    ? 'Operational'
-                    : 'Needs Attention'}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Last maintenance: {formatDate(system.lastMaintenance)} • Next
-                  maintenance: {formatDate(system.nextMaintenance)}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="gap-1">
-                <Wifi className="h-3 w-3" />
-                Connected
-              </Badge>
-              <Badge variant="outline" className="gap-1">
-                <HardDrive className="h-3 w-3" />
-                Tank {system.tankLevel}%
-              </Badge>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Settings tabs */}
-      <Tabs
-        value={activeTab}
-        onValueChange={setActiveTab}
-        className="space-y-6"
-      >
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         {/* Mobile: Select dropdown */}
         <div className="sm:hidden">
           <Select value={activeTab} onValueChange={setActiveTab}>
@@ -622,436 +527,46 @@ export default function SettingsPage() {
               <SelectValue placeholder="Select section" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="notifications">
-                <span className="flex items-center gap-2">
-                  <Bell className="h-4 w-4" />
-                  Notifications
-                </span>
-              </SelectItem>
-              <SelectItem value="display">
-                <span className="flex items-center gap-2">
-                  <Palette className="h-4 w-4" />
-                  Display
-                </span>
-              </SelectItem>
-              <SelectItem value="sensors">
-                <span className="flex items-center gap-2">
-                  <Gauge className="h-4 w-4" />
-                  Sensors
-                </span>
-              </SelectItem>
-              <SelectItem value="system">
-                <span className="flex items-center gap-2">
-                  <Settings className="h-4 w-4" />
-                  System
-                </span>
-              </SelectItem>
-              <SelectItem value="data">
-                <span className="flex items-center gap-2">
-                  <Database className="h-4 w-4" />
-                  Data
-                </span>
-              </SelectItem>
-              <SelectItem value="users">
-                <span className="flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  Users
-                </span>
-              </SelectItem>
-              <SelectItem value="first_flush">
-                <span className="flex items-center gap-2">
-                  <Droplets className="h-4 w-4" />
-                  First Flush
-                </span>
-              </SelectItem>
+              {TABS.map(({ value, label, Icon }) => (
+                <SelectItem key={value} value={value}>
+                  <span className="flex items-center gap-2">
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </span>
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
 
-        {/* Desktop: Regular tabs */}
-        <TabsList className="hidden w-full grid-cols-7 sm:grid">
-          <TabsTrigger value="notifications" className="gap-2">
-            <Bell className="h-4 w-4" />
-            Notifications
-          </TabsTrigger>
-          <TabsTrigger value="display" className="gap-2">
-            <Palette className="h-4 w-4" />
-            Display
-          </TabsTrigger>
-          <TabsTrigger value="sensors" className="gap-2">
-            <Gauge className="h-4 w-4" />
-            Sensors
-          </TabsTrigger>
-          <TabsTrigger value="system" className="gap-2">
-            <Settings className="h-4 w-4" />
-            System
-          </TabsTrigger>
-          <TabsTrigger value="data" className="gap-2">
-            <Database className="h-4 w-4" />
-            Data
-          </TabsTrigger>
-          <TabsTrigger value="users" className="gap-2">
-            <Users className="h-4 w-4" />
-            Users
-          </TabsTrigger>
-          <TabsTrigger value="first_flush" className="gap-2">
-            <Droplets className="h-4 w-4" />
-            First Flush
-          </TabsTrigger>
+        {/* Desktop: Tab list */}
+        <TabsList className="hidden w-full grid-cols-5 sm:grid">
+          {TABS.map(({ value, label, Icon }) => (
+            <TabsTrigger key={value} value={value} className="gap-2">
+              <Icon className="h-4 w-4" />
+              {label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        {/* Notifications Tab */}
-        <TabsContent value="notifications" className="space-y-6">
-          <SettingsSection
-            icon={Bell}
-            title="Notification Preferences"
-            description="Choose how you want to receive alerts and updates"
-          >
-            <SettingToggle
-              id="emailAlerts"
-              label="Email Alerts"
-              description="Receive alerts via email"
-              checked={notifications.emailAlerts}
-              onCheckedChange={(checked) =>
-                handleNotificationChange('emailAlerts', checked)
-              }
-            />
-            <Separator />
-            <PushNotificationToggle />
-            <Separator />
-            <SettingToggle
-              id="smsAlerts"
-              label="SMS Alerts"
-              description="Receive critical alerts via SMS"
-              checked={notifications.smsAlerts}
-              onCheckedChange={(checked) =>
-                handleNotificationChange('smsAlerts', checked)
-              }
-            />
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-sm font-medium">Alert Threshold</Label>
-                <p className="text-xs text-muted-foreground">
-                  When to trigger notifications
-                </p>
-              </div>
-              <Select
-                value={notifications.alertThreshold}
-                onValueChange={(value) =>
-                  handleNotificationChange('alertThreshold', value)
-                }
-              >
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="warning">Warning</SelectItem>
-                  <SelectItem value="critical">Critical Only</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </SettingsSection>
-
-          <div className="flex justify-end">
-            <Button
-              onClick={() => handleSave('notifications')}
-              disabled={isLoading}
-            >
-              <Save className="mr-2 h-4 w-4" />
-              Save Notifications
-            </Button>
-          </div>
+        <TabsContent value="actuators" className="space-y-6">
+          <ActuatorsPanel
+            persisted={persisted}
+            filterMode={filterMode}
+            backwashState={backwashState}
+          />
         </TabsContent>
 
-        {/* Display Tab */}
-        <TabsContent value="display" className="space-y-6">
-          <SettingsSection
-            icon={Palette}
-            title="Display Preferences"
-            description="Customize the dashboard appearance"
-          >
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-sm font-medium">Theme</Label>
-                <p className="text-xs text-muted-foreground">
-                  Choose your preferred color scheme
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant={display.theme === 'light' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => handleDisplayChange('theme', 'light')}
-                >
-                  <Sun className="mr-1 h-4 w-4" />
-                  Light
-                </Button>
-                <Button
-                  variant={display.theme === 'dark' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => handleDisplayChange('theme', 'dark')}
-                >
-                  <Moon className="mr-1 h-4 w-4" />
-                  Dark
-                </Button>
-                <Button
-                  variant={display.theme === 'system' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => handleDisplayChange('theme', 'system')}
-                >
-                  <Monitor className="mr-1 h-4 w-4" />
-                  System
-                </Button>
-              </div>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-sm font-medium">
-                  Chart Refresh Rate
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  How often to update charts
-                </p>
-              </div>
-              <Select
-                value={String(display.chartRefreshRate)}
-                onValueChange={(value) =>
-                  handleDisplayChange('chartRefreshRate', parseInt(value))
-                }
-              >
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">10 seconds</SelectItem>
-                  <SelectItem value="30">30 seconds</SelectItem>
-                  <SelectItem value="60">1 minute</SelectItem>
-                  <SelectItem value="300">5 minutes</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-sm font-medium">Temperature Unit</Label>
-                <p className="text-xs text-muted-foreground">
-                  Display temperature in
-                </p>
-              </div>
-              <Select
-                value={display.temperatureUnit}
-                onValueChange={(value) =>
-                  handleDisplayChange('temperatureUnit', value)
-                }
-              >
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="celsius">Celsius (°C)</SelectItem>
-                  <SelectItem value="fahrenheit">Fahrenheit (°F)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </SettingsSection>
-
-          <div className="flex justify-end">
-            <Button onClick={() => handleSave('display')} disabled={isLoading}>
-              <Save className="mr-2 h-4 w-4" />
-              Save Display
-            </Button>
-          </div>
+        <TabsContent value="calibration" className="space-y-6">
+          <CalibrationPanel />
         </TabsContent>
 
-        {/* Sensors Tab */}
-        <TabsContent value="sensors" className="space-y-6">
-          <SettingsSection
-            icon={Gauge}
-            title="Sensor Calibration"
-            description="Adjust sensor offsets for accurate readings"
-          >
-            {Object.entries(SENSOR_THRESHOLDS).map(([key, threshold]) => (
-              <div key={key} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-sm font-medium">
-                      {threshold.name}
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Offset adjustment ({threshold.unit})
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={calibration[`${key}Offset`] || 0}
-                      onChange={(e) =>
-                        handleCalibrationChange(`${key}Offset`, e.target.value)
-                      }
-                      className="w-20 rounded-md border bg-background px-3 py-1 text-sm"
-                    />
-                  </div>
-                </div>
-                <Separator />
-              </div>
-            ))}
-            <p className="mt-4 text-xs text-muted-foreground">
-              Note: Calibration changes will be applied to all new readings.
-              Consult your sensor documentation for proper calibration
-              procedures.
-            </p>
-          </SettingsSection>
-
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setCalibration(settings.sensorCalibration)}
-            >
-              <RotateCcw className="mr-2 h-4 w-4" />
-              Reset
-            </Button>
-            <Button
-              onClick={() => handleSave('calibration')}
-              disabled={isLoading}
-            >
-              <Save className="mr-2 h-4 w-4" />
-              Save Calibration
-            </Button>
-          </div>
-        </TabsContent>
-
-        {/* System Tab */}
-        <TabsContent value="system" className="space-y-6">
-          <SettingsSection
-            icon={Settings}
-            title="Pipeline Controls"
-            description="Filter mode and backwash are controlled from the Actuators page"
-          >
-            <p className="text-sm text-muted-foreground">
-              Use the{' '}
-              <a href="/actuators" className="font-medium text-primary underline-offset-4 hover:underline">
-                Actuators page
-              </a>{' '}
-              to switch between Charcoal-only and Charcoal + RO filter modes, and to start or stop a backwash cycle.
-              These are live hardware commands sent directly to the Mega.
-            </p>
-          </SettingsSection>
-        </TabsContent>
-
-        {/* Data Tab */}
-        <TabsContent value="data" className="space-y-6">
-          <SettingsSection
-            icon={Database}
-            title="Data Logging"
-            description="Configure how sensor data is stored"
-          >
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-sm font-medium">Log Interval</Label>
-                <p className="text-xs text-muted-foreground">
-                  How often to record readings
-                </p>
-              </div>
-              <Select
-                value={String(dataLogging.logInterval)}
-                onValueChange={(value) =>
-                  handleDataLoggingChange('logInterval', parseInt(value))
-                }
-              >
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1 minute</SelectItem>
-                  <SelectItem value="5">5 minutes</SelectItem>
-                  <SelectItem value="15">15 minutes</SelectItem>
-                  <SelectItem value="30">30 minutes</SelectItem>
-                  <SelectItem value="60">1 hour</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-sm font-medium">Data Retention</Label>
-                <p className="text-xs text-muted-foreground">
-                  How long to keep historical data
-                </p>
-              </div>
-              <Select
-                value={String(dataLogging.retentionPeriod)}
-                onValueChange={(value) =>
-                  handleDataLoggingChange('retentionPeriod', parseInt(value))
-                }
-              >
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="7">7 days</SelectItem>
-                  <SelectItem value="30">30 days</SelectItem>
-                  <SelectItem value="90">90 days</SelectItem>
-                  <SelectItem value="365">1 year</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Separator />
-            <SettingToggle
-              id="autoExport"
-              label="Automatic Export"
-              description="Export data automatically at the end of each day"
-              checked={dataLogging.autoExport}
-              onCheckedChange={(checked) =>
-                handleDataLoggingChange('autoExport', checked)
-              }
-            />
-            {dataLogging.autoExport && (
-              <div className="ml-4 flex items-center gap-2">
-                <Label>Format:</Label>
-                <Select
-                  value={dataLogging.exportFormat}
-                  onValueChange={(value) =>
-                    handleDataLoggingChange('exportFormat', value)
-                  }
-                >
-                  <SelectTrigger className="w-24">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="csv">CSV</SelectItem>
-                    <SelectItem value="json">JSON</SelectItem>
-                    <SelectItem value="xlsx">Excel</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </SettingsSection>
-
-          <div className="flex justify-end">
-            <Button onClick={() => handleSave('data')} disabled={isLoading}>
-              <Save className="mr-2 h-4 w-4" />
-              Save Data Settings
-            </Button>
-          </div>
-        </TabsContent>
-
-        {/* Users Tab */}
-        <TabsContent value="users" className="space-y-6">
-          <UserManagement />
-          <ChangePassword />
-        </TabsContent>
-
-        {/* First Flush Tab */}
         <TabsContent value="first_flush" className="space-y-6">
           <SettingsSection
             icon={Droplets}
             title="First Flush Configuration"
             description="Tune the automatic rain diverter thresholds. Changes are sent live to the Arduino — no reflash needed."
           >
-            {/* Flow trigger threshold */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
@@ -1081,7 +596,6 @@ export default function SettingsPage() {
 
             <Separator />
 
-            {/* Flush duration */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
@@ -1110,13 +624,13 @@ export default function SettingsPage() {
             </div>
 
             {ffFetcher.data?.ok && (
-              <div className="flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700 dark:bg-green-950/30 dark:text-green-400">
+              <div className="flex items-center gap-2 rounded-lg bg-[color:var(--water-safe)]/10 px-3 py-2 text-sm text-[color:var(--water-safe)]">
                 <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
                 <span>First flush configuration updated and sent to device.</span>
               </div>
             )}
             {ffFetcher.data?.error && (
-              <div className="flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-400">
+              <div className="flex items-center gap-2 rounded-lg bg-[color:var(--water-unsafe)]/10 px-3 py-2 text-sm text-[color:var(--water-unsafe)]">
                 <AlertCircle className="h-4 w-4 flex-shrink-0" />
                 <span>{ffFetcher.data.error}</span>
               </div>
@@ -1137,6 +651,21 @@ export default function SettingsPage() {
               {ffFetcher.state === 'submitting' ? 'Applying…' : 'Apply & Send to Device'}
             </Button>
           </div>
+        </TabsContent>
+
+        <TabsContent value="users" className="space-y-6">
+          <UserManagement />
+          <ChangePassword />
+        </TabsContent>
+
+        <TabsContent value="notifications" className="space-y-6">
+          <SettingsSection
+            icon={Bell}
+            title="Notification Preferences"
+            description="Push notifications delivered to this device for warnings, errors, and process completions."
+          >
+            <PushNotificationToggle />
+          </SettingsSection>
         </TabsContent>
       </Tabs>
     </div>

@@ -153,7 +153,7 @@ export function DashboardLayout({ alertCount = 0, user = null, weather = null })
           */}
           <footer className="hidden lg:block border-t py-4 px-8">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <p>© 2026 Smart Rainwater Harvesting System. Thesis Project.</p>
+              <p>© 2026 RainSense. Smart Rainwater Monitoring System.</p>
               <p>Built with Remix, Tailwind CSS & shadcn/ui</p>
             </div>
           </footer>

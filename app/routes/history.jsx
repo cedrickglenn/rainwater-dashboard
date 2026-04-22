@@ -44,7 +44,7 @@ import { formatDate, formatLogDate } from '~/lib/date-utils';
 // ---------------------------------------------------------------------------
 
 export const meta = () => [
-  { title: 'History | RainWater Monitoring System' },
+  { title: 'History | RainSense' },
   { name: 'description', content: 'Activity logs and historical sensor data' },
 ];
 

@@ -1,11 +1,11 @@
 {
-  "name": "RainWater Dashboard",
-  "short_name": "RainWater",
+  "name": "RainSense",
+  "short_name": "RainSense",
   "description": "Smart Rainwater Harvesting and Filtration System Monitor",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0ea5e9",
+  "background_color": "#0C1A24",
+  "theme_color": "#1A6B8A",
   "orientation": "portrait-primary",
   "icons": [
     {

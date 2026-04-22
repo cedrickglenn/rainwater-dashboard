@@ -262,12 +262,20 @@ export function ContainerLineChart({
   height = 260,
   showGrid = true,
   className,
+  // 'all' → C2 + C5 + C6 (full pipeline, used on Sensors page)
+  // 'beforeAfter' → C2 raw vs C6 output only (used on Homepage)
+  mode = 'all',
 }) {
-  const lines = [
-    { key: `${metric}_c2`, label: 'C2 Raw',    color: CONTAINER_COLORS.C2 },
-    { key: `${metric}_c5`, label: 'C5 Filter', color: CONTAINER_COLORS.C5 },
-    { key: `${metric}_c6`, label: 'C6 Final',  color: CONTAINER_COLORS.C6 },
-  ];
+  const lines = mode === 'beforeAfter'
+    ? [
+        { key: `${metric}_c2`, label: 'C2 Raw',    color: 'hsl(var(--muted-foreground))' },
+        { key: `${metric}_c6`, label: 'C6 Output', color: 'hsl(var(--primary))' },
+      ]
+    : [
+        { key: `${metric}_c2`, label: 'C2 Raw',    color: CONTAINER_COLORS.C2 },
+        { key: `${metric}_c5`, label: 'C5 Filter', color: CONTAINER_COLORS.C5 },
+        { key: `${metric}_c6`, label: 'C6 Final',  color: CONTAINER_COLORS.C6 },
+      ];
 
   return (
     <Card className={cn('', className)}>

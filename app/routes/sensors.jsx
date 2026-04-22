@@ -36,7 +36,7 @@ import {
   Info,
 } from 'lucide-react';
 
-import { sensorMetadata } from '~/data/mock-data';
+import { sensorMetadata } from '~/data/sensor-config';
 import { Tooltip, TooltipTrigger, TooltipContent } from '~/components/ui/tooltip';
 import { getDb } from '~/lib/db.server';
 import {
@@ -48,7 +48,7 @@ import {
 import { formatRelativeTime } from '~/lib/date-utils';
 
 export const meta = () => [
-  { title: 'Sensors | RainWater Monitoring System' },
+  { title: 'Sensors | RainSense' },
   { name: 'description', content: 'Detailed sensor readings across all containers' },
 ];
 
@@ -126,9 +126,9 @@ export const loader = async ({ request }) => {
 
 // ── Container metadata for the detail view ────────────────────────────────
 const CONTAINER_META = {
-  C2: { label: 'C2', title: 'Raw Rainwater',  color: '#3b82f6' },
-  C5: { label: 'C5', title: 'After Filter',   color: '#f59e0b' },
-  C6: { label: 'C6', title: 'Final Storage',  color: '#22c55e' },
+  C2: { label: 'C2', title: 'Raw Rainwater' },
+  C5: { label: 'C5', title: 'After Filter' },
+  C6: { label: 'C6', title: 'Final Storage' },
 };
 
 const SENSOR_ICONS = {
@@ -138,7 +138,7 @@ const SENSOR_ICONS = {
 };
 
 // ── Per-sensor detail row inside a container tab ──────────────────────────
-function SensorRow({ type, value, data, containerColor }) {
+function SensorRow({ type, value, data }) {
   const threshold   = SENSOR_THRESHOLDS[type];
   const hasValue    = value != null;
   const status      = getSensorStatus(type, value);
@@ -161,8 +161,8 @@ function SensorRow({ type, value, data, containerColor }) {
       {/* Header row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="rounded-lg p-2" style={{ backgroundColor: `${meta.color}20` }}>
-            <Icon className="h-4 w-4" style={{ color: meta.color }} />
+          <div className="rounded-lg bg-muted p-2">
+            <Icon className="h-4 w-4 text-muted-foreground" />
           </div>
           <span className="text-sm font-medium">{threshold.name}</span>
         </div>
@@ -177,12 +177,7 @@ function SensorRow({ type, value, data, containerColor }) {
         {hasValue && (
           <span className="text-sm text-muted-foreground">{threshold.unit}</span>
         )}
-        <div className={cn(
-          'ml-auto flex items-center gap-1 text-xs',
-          trend > 0 && 'text-green-500',
-          trend < 0 && 'text-red-500',
-          trend === 0 && 'text-muted-foreground',
-        )}>
+        <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
           <TrendIcon className="h-3.5 w-3.5" />
           <span>{trend > 0 ? 'Rising' : trend < 0 ? 'Falling' : 'Stable'}</span>
         </div>
@@ -198,9 +193,9 @@ function SensorRow({ type, value, data, containerColor }) {
           value={Math.min(percentage, 100)}
           className="h-1.5"
           indicatorClassName={cn(
-            status === 'safe'    && 'bg-green-500',
-            status === 'warning' && 'bg-amber-500',
-            status === 'unsafe'  && 'bg-red-500',
+            status === 'safe'    && 'bg-[color:var(--water-safe)]',
+            status === 'warning' && 'bg-[color:var(--water-warning)]',
+            status === 'unsafe'  && 'bg-[color:var(--water-unsafe)]',
           )}
         />
       </div>
@@ -215,7 +210,7 @@ function SensorRow({ type, value, data, containerColor }) {
 }
 
 // ── Per-container tab panel ───────────────────────────────────────────────
-function ContainerTab({ container, sensors, historical, containerColor }) {
+function ContainerTab({ container, sensors, historical }) {
   const sensorTypes = ['ph', 'turbidity', 'temperature'];
 
   // Remap historical to single-container keys for SensorAreaChart
@@ -237,7 +232,6 @@ function ContainerTab({ container, sensors, historical, containerColor }) {
             type={type}
             value={sensors[type]}
             data={containerData}
-            containerColor={containerColor}
           />
         ))}
       </div>
@@ -341,8 +335,8 @@ export default function SensorsPage() {
       {/* Last updated */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[color:var(--water-safe)] opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-[color:var(--water-safe)]" />
         </span>
         <span>
           {lastUpdated
@@ -370,7 +364,6 @@ export default function SensorsPage() {
               container={key}
               sensors={containers[key]}
               historical={historical}
-              containerColor={meta.color}
             />
           </TabsContent>
         ))}
@@ -417,8 +410,8 @@ export default function SensorsPage() {
               const meta      = sensorMetadata[key];
               return (
                 <div key={key} className="flex items-start gap-3 rounded-lg border p-3">
-                  <div className="rounded-lg p-2" style={{ backgroundColor: `${meta.color}20` }}>
-                    <Icon className="h-4 w-4" style={{ color: meta.color }} />
+                  <div className="rounded-lg bg-muted p-2">
+                    <Icon className="h-4 w-4 text-muted-foreground" />
                   </div>
                   <div>
                     <p className="text-sm font-medium">{threshold.name}</p>

@@ -19,17 +19,13 @@ import {
   Gauge,
   History,
   Settings,
-  Wrench,
-  SlidersHorizontal,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { name: 'Home',      href: '/',            icon: LayoutDashboard,   minRole: null       },
-  { name: 'Sensors',   href: '/sensors',     icon: Gauge,             minRole: null       },
-  { name: 'History',   href: '/history',     icon: History,           minRole: null       },
-  { name: 'Controls',  href: '/actuators',   icon: Wrench,            minRole: 'operator' },
-  { name: 'Calibrate', href: '/calibration', icon: SlidersHorizontal, minRole: 'admin'    },
-  { name: 'Settings',  href: '/settings',    icon: Settings,          minRole: 'admin'    },
+  { name: 'Home',     href: '/',         icon: LayoutDashboard, minRole: null    },
+  { name: 'Sensors',  href: '/sensors',  icon: Gauge,           minRole: null    },
+  { name: 'History',  href: '/history',  icon: History,         minRole: null    },
+  { name: 'Settings', href: '/settings', icon: Settings,        minRole: 'admin' },
 ];
 
 const ROLE_LEVEL = { admin: 3, operator: 2, viewer: 1 };

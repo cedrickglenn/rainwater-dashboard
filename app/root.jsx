@@ -24,7 +24,6 @@ import { Toaster } from '~/components/ui/toaster';
 import { ActivityStreamProvider } from '~/lib/activity-stream';
 
 // Data
-import { alerts } from '~/data/mock-data';
 import { getWeather } from '~/lib/weather.server';
 
 /**
@@ -32,17 +31,17 @@ import { getWeather } from '~/lib/weather.server';
  */
 export const meta = () => {
   return [
-    { title: 'RainWater Dashboard | Smart Rainwater Monitoring System' },
+    { title: 'RainSense | Smart Rainwater Monitoring' },
     {
       name: 'description',
       content:
         'Monitor rainwater quality and potability in real-time with our smart harvesting system',
     },
-    { name: 'theme-color', content: '#0ea5e9' },
+    { name: 'theme-color', content: '#1A6B8A' },
     { name: 'mobile-web-app-capable', content: 'yes' },
     { name: 'apple-mobile-web-app-capable', content: 'yes' },
     { name: 'apple-mobile-web-app-status-bar-style', content: 'default' },
-    { name: 'apple-mobile-web-app-title', content: 'RainWater' },
+    { name: 'apple-mobile-web-app-title', content: 'RainSense' },
   ];
 };
 
@@ -58,7 +57,7 @@ export const links = () => [
   },
   {
     rel: 'stylesheet',
-    href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
+    href: 'https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap',
   },
   { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
   { rel: 'manifest', href: '/manifest.json' },
@@ -69,10 +68,21 @@ export const links = () => [
  */
 export const loader = async ({ request }) => {
   const { getUser } = await import('~/lib/auth.server');
-  const unreadAlerts = alerts.filter((alert) => !alert.isRead).length;
-  const [user, weather] = await Promise.all([getUser(request), getWeather()]);
+  const { getDb } = await import('~/lib/db.server');
+
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [user, weather, db] = await Promise.all([
+    getUser(request),
+    getWeather(),
+    getDb(),
+  ]);
+  const alertCount = await db.collection('activity_logs').countDocuments({
+    level: { $in: ['WARN', 'ERR'] },
+    timestamp: { $gte: since },
+  });
+
   return json({
-    alertCount: unreadAlerts,
+    alertCount,
     user,
     weather,
     vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? null,

@@ -168,3 +168,126 @@ await mqttPublish('rainwater/commands', 'C,PUMP,PUMP_ON,ON');
 4. In a second terminal: `npm run bridge` — connects MQTT and writes ACKs/logs to MongoDB
 
 To simulate sensor data without hardware: `POST localhost:5173/api/sensors` with a JSON body containing fields like `ph_c6`, `turb_c6`, `lvl_c2`, etc.
+
+---
+
+## Design System — "Deep Water"
+
+All UI work must follow this design system. Do not deviate without explicit instruction.
+
+### Philosophy
+
+Monochromatic teal-based palette. Hierarchy comes from spacing and weight, not color variety. Color is reserved for meaning (status), not decoration. Smart and minimal — works first on mobile, scales cleanly to desktop.
+
+### App Name
+
+**RainSense** — used in sidebar, topbar, page titles, footer, PWA manifest, and login page.
+
+### Typography
+
+- **UI font**: [DM Sans](https://fonts.google.com/specimen/DM+Sans) — replaces Inter. Geometric, clean, excellent on mobile at small sizes.
+- **Monospace / numbers**: [DM Mono](https://fonts.google.com/specimen/DM+Mono) — replaces JetBrains Mono. Used for all sensor values, numeric readouts, timestamps.
+- Both loaded from Google Fonts. They share a design family — do not mix in other fonts.
+
+### Color Palette
+
+**CSS variable names follow shadcn/ui convention (HSL values in `tailwind.css`).**
+
+| Token | Light | Dark | Usage |
+|-------|-------|------|-------|
+| `--background` | `#F4F7F9` | `#0C1A24` | Page background |
+| `--card` | `#FFFFFF` | `#132130` | Card surfaces |
+| `--card-elevated` | `#EEF3F7` | `#1A2E3F` | Nested panels, inputs |
+| `--border` | `#DDE4EB` | `#253D52` | All borders |
+| `--primary` | `#1A6B8A` | `#38B2D4` | Brand color, interactive elements |
+| `--primary-light` | `#E8F4F9` | `#0F2A38` | Active/hover tinted backgrounds |
+| `--foreground` | `#0F1F2B` | `#E8F3F8` | Primary text |
+| `--muted-foreground` | `#5E7A8A` | `#6E96AA` | Labels, captions, secondary text |
+
+**Status / water quality colors** (same in both modes, kept consistent):
+
+| Status | Color | Hex | Usage |
+|--------|-------|-----|-------|
+| Safe | Teal-green | `#16A876` | SAFE water quality, online indicators |
+| Warning | Amber | `#D97706` | WARNING quality, caution states |
+| Unsafe / Error | Rose | `#DC2645` | UNSAFE quality, errors, destructive actions |
+| Unknown | Muted grey | use `--muted-foreground` | No data / sensor offline |
+
+### Border Radius
+
+`--radius: 0.75rem` (12px) base. Cards, buttons, inputs all use this or derived values (`calc(var(--radius) - 2px)` for inner elements). Do not use fully rounded (`rounded-full`) for content containers — only for badges, avatars, and status dots.
+
+### Sensor Card Coloring
+
+**Do not assign per-sensor-type colors** (no purple-for-pH, amber-for-turbidity, etc.).
+
+Sensor cards use a neutral tinted background by default. The **only** color on a sensor reading is its **status color** (safe/warning/unsafe). This makes status immediately legible and prevents the UI from looking like a color sampler.
+
+Example: a pH card showing 7.2 (safe) gets a subtle `#16A876` tint. The same card showing pH 9.1 (unsafe) gets a `#DC2645` tint. The icon and label identify the sensor type — color communicates health.
+
+### Navigation Structure
+
+Sidebar nav items (in order):
+1. **Dashboard** — `/` — all roles
+2. **Sensors** — `/sensors` — all roles
+3. **History** — `/history` — all roles
+4. **Settings** — `/settings` — admin only
+
+Actuators and Calibration are **tabs within Settings**, not top-level nav items. Routes `/actuators` and `/calibration` redirect to `/settings?tab=actuators` and `/settings?tab=calibration`.
+
+### Settings Tabs (in order)
+
+Only include tabs that have real backend persistence or hardware integration:
+1. **Actuators** — pump/valve control (operator+)
+2. **Calibration** — sensor calibration (admin)
+3. **First Flush** — flow threshold + duration, sends MQTT to Mega (admin)
+4. **Users** — user management + password change (admin)
+5. **Notifications** — push notifications only (admin); email/SMS are not implemented and must not appear
+
+Tabs with no real persistence (Display preferences, Sensor offsets, Data logging) are **removed**. Theme toggle lives in the topbar only.
+
+### Logo & Icons
+
+**Concept:** A teardrop shape with a flat ECG-style pulse line across the lower interior. The drop = rain/water. The pulse = sensing/measurement. Together they read as "water being monitored."
+
+**Rules:**
+- Flat, no gradient, no highlight blob, no drop shadow
+- Single color: `#1A6B8A` on light backgrounds, `#38B2D4` on dark, white when on a colored background
+- The pulse line is rendered as a `stroke` path (not filled), white or `currentColor`
+- The teardrop is geometric and symmetrical — not the freehand blob in the old icon
+
+**Files:**
+- `public/favicon.svg` — 32×32 or 100×100 viewBox, no background, transparent, single teal color
+- `public/icons/icon.svg` — 512×512, rounded-square teal background (`#1A6B8A`), white mark centered (for PWA home screen)
+- Sidebar badge: inline `<svg>` of the mark (not Lucide `<Droplets>`), `fill="currentColor"`, inside the existing `bg-primary rounded-xl` badge
+
+**Do not** use the Lucide `<Droplets>` icon as the app logo anywhere. It's a generic multi-droplet icon with no connection to the RainSense mark.
+
+### Homepage Philosophy
+
+The homepage answers one question: **is the system working right now?**
+
+Layout order reflects operational priority:
+1. Pipeline status strip — hardware online, first-flush state, filter mode
+2. Mode-aware pipeline diagram — shows the *active* flow path, not all containers equally
+3. Before/after trend charts — pH and turbidity: C2 (raw) vs C6 (output), 24h
+4. Compact weather strip — single row, not a card
+5. Activity log — full width, operationally the most relevant content
+
+**Mode-aware pipeline rule:** The diagram always shows all containers (C2, C5, C6), but reflects the active `filter_mode`:
+- `Charcoal only (1)`: C2 → C6 active (teal), C5 dimmed with "Bypassed" label
+- `Charcoal + RO (2)`: C2 → C5 → C6 all active
+- `Off (0)`: all dimmed
+
+**C6 is the output node** and should be visually distinct — it carries the overall potability status. The standalone "Water Quality Hero" card is gone; that status lives inside the C6 node itself.
+
+**Charts on the homepage are focused on filtration effectiveness** — C2 vs C6 comparison for pH and turbidity only. Full per-container, multi-metric charts live on the Sensors page.
+
+### What Not to Do
+
+- Do not use `sky-*`, `blue-*`, or default shadcn primary colors anywhere
+- Do not use four different colors to distinguish sensor types
+- Do not add gradient text (`bg-clip-text`) to headings
+- Do not use card hover lift effects (`hover:-translate-y-1`) on data cards — these are dashboards, not marketing pages
+- Do not use glass morphism (`backdrop-blur` + transparency) on primary content surfaces — only on the sticky topbar
+- Do not add decorative elements (wave SVGs, water drop illustrations, etc.) — the data is the design
