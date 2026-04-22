@@ -88,10 +88,43 @@ function StatusDot({ mqttStatus }) {
 // LogLine
 // ---------------------------------------------------------------------------
 
+function MegaSensorBlock({ raw, ts }) {
+  // Parse "MEGA|KEY=VALUE|KEY=VALUE|..." into an array of {key, value} pairs.
+  const parts = raw.split('|').slice(1); // drop leading "MEGA"
+  const pairs = parts.map((p) => {
+    const eq = p.indexOf('=');
+    return eq < 0 ? null : { key: p.slice(0, eq), value: p.slice(eq + 1) };
+  }).filter(Boolean);
+
+  return (
+    <div className="font-mono text-xs leading-relaxed opacity-50 mb-1">
+      <div className="flex gap-2 mb-0.5">
+        <span className="shrink-0 text-zinc-400 dark:text-zinc-500">{formatTime(ts)}</span>
+        <span className="shrink-0 w-9 text-zinc-400 dark:text-zinc-500">DBG</span>
+        <span className="text-zinc-500 dark:text-zinc-400 font-semibold">Mega sensors</span>
+      </div>
+      <div className="ml-[4.25rem] grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-0">
+        {pairs.map(({ key, value }) => (
+          <span key={key} className="text-zinc-400 dark:text-zinc-500">
+            <span className="text-zinc-500 dark:text-zinc-400">{key}</span>
+            {' = '}
+            <span>{value}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function LogLine({ line }) {
   const isDebug = line.channel === 'debug';
 
   if (isDebug) {
+    // Batched Mega telemetry cycle — render as a sensor grid.
+    const debugRaw = line.raw ?? line.message ?? '';
+    if (debugRaw.startsWith('MEGA|')) {
+      return <MegaSensorBlock raw={debugRaw} ts={line.ts} />;
+    }
     return (
       <div className="flex gap-2 font-mono text-xs leading-relaxed opacity-50">
         <span className="shrink-0 text-zinc-400 dark:text-zinc-500">{formatTime(line.ts)}</span>
