@@ -108,9 +108,9 @@ function LogLine({ line }) {
             <span className="shrink-0 w-9 text-zinc-400 dark:text-zinc-500">DBG</span>
             <span className="text-zinc-500 dark:text-zinc-400">[Mega] Sensors</span>
           </div>
-          <div className="ml-[4.25rem] grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-0 leading-relaxed">
+          <div className="pl-[5.25rem] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-0 leading-relaxed">
             {pairs.map(({ key, value }) => (
-              <span key={key} className="text-zinc-400 dark:text-zinc-500 whitespace-nowrap">
+              <span key={key} className="text-zinc-400 dark:text-zinc-500">
                 <span className="text-zinc-500 dark:text-zinc-400">{key}</span>{' = '}{value}
               </span>
             ))}
