@@ -884,6 +884,239 @@ function ResetSection() {
 }
 
 // ---------------------------------------------------------------------------
+// LiveCalibrationState — polls /api/sensors/latest every 5 s and renders
+// the calibration values currently stored in the Mega's EEPROM.
+// Fields arrive via the S,CAL_* telemetry embedded in each sensor frame.
+// ---------------------------------------------------------------------------
+
+const LVL_CONTAINERS_STATE = ['C2', 'C3', 'C4', 'C5', 'C6'];
+const QTY_CONTAINERS_STATE  = ['C2', 'C5', 'C6'];
+
+function CalBadge({ calibrated }) {
+  return calibrated ? (
+    <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+      <CheckCircle2 className="h-3 w-3" /> Calibrated
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+      <AlertCircle className="h-3 w-3" /> Factory default
+    </span>
+  );
+}
+
+function LiveCalibrationState() {
+  const [reading, setReading] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function poll() {
+      try {
+        const res = await fetch('/api/sensors/latest');
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setReading(data);
+      } catch { /* hardware may be offline */ }
+    }
+    poll();
+    const id = setInterval(poll, 5000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
+  function get(key) {
+    if (!reading) return null;
+    const v = reading[key.toLowerCase()];
+    return v != null ? Number(v) : null;
+  }
+
+  const hasData = reading && get('cal_lvl_c2_empty') != null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <DatabaseZap className="h-5 w-5 text-primary" />
+          Live EEPROM Calibration State
+        </CardTitle>
+        <CardDescription>
+          Values broadcast by the Mega every 2 s directly from its EEPROM.
+          Always reflects the current device state — even after a power cycle or factory reset.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {!hasData ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {reading === null ? 'Loading…' : 'Waiting for Mega telemetry (cal fields not yet received)…'}
+          </div>
+        ) : (
+          <>
+            {/* Level sensors */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-sm font-medium">
+                <Waves className="h-4 w-4 text-muted-foreground" />
+                Water Level
+              </div>
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Container</th>
+                      <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Empty (cm)</th>
+                      <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Full (cm)</th>
+                      <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Raw now (cm)</th>
+                      <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {LVL_CONTAINERS_STATE.map(c => {
+                      const lc = c.toLowerCase();
+                      const empty = get(`cal_lvl_${lc}_empty`);
+                      const full  = get(`cal_lvl_${lc}_full`);
+                      const cal   = get(`cal_lvl_${lc}_cal`);
+                      const raw   = get(`raw_dist_${lc}`);
+                      return (
+                        <tr key={c} className="border-b last:border-0">
+                          <td className="px-3 py-2 text-xs font-medium">{c}</td>
+                          <td className="px-3 py-2 text-center font-mono text-xs">
+                            {empty != null ? empty.toFixed(1) : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-center font-mono text-xs">
+                            {full != null ? full.toFixed(1) : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-center font-mono text-xs text-muted-foreground">
+                            {raw != null ? raw.toFixed(1) : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            {cal != null ? <CalBadge calibrated={cal === 1} /> : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* pH */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-sm font-medium">
+                <Droplets className="h-4 w-4 text-muted-foreground" />
+                pH
+              </div>
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Container</th>
+                      <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Neutral (mV)</th>
+                      <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Acid (mV)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {QTY_CONTAINERS_STATE.map(c => {
+                      const lc = c.toLowerCase();
+                      const neutral = get(`cal_ph_${lc}_neutral`);
+                      const acid    = get(`cal_ph_${lc}_acid`);
+                      return (
+                        <tr key={c} className="border-b last:border-0">
+                          <td className="px-3 py-2 text-xs font-medium">{c}</td>
+                          <td className="px-3 py-2 text-center font-mono text-xs">{neutral != null ? neutral.toFixed(1) : '—'}</td>
+                          <td className="px-3 py-2 text-center font-mono text-xs">{acid    != null ? acid.toFixed(1)    : '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Turbidity */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-sm font-medium">
+                <Eye className="h-4 w-4 text-muted-foreground" />
+                Turbidity
+              </div>
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Container</th>
+                      <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Zero (V)</th>
+                      <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Slope (NTU/V)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {QTY_CONTAINERS_STATE.map(c => {
+                      const lc   = c.toLowerCase();
+                      const zero  = get(`cal_turb_${lc}_zero`);
+                      const slope = get(`cal_turb_${lc}_slope`);
+                      return (
+                        <tr key={c} className="border-b last:border-0">
+                          <td className="px-3 py-2 text-xs font-medium">{c}</td>
+                          <td className="px-3 py-2 text-center font-mono text-xs">{zero  != null ? zero.toFixed(3)  : '—'}</td>
+                          <td className="px-3 py-2 text-center font-mono text-xs">{slope != null ? slope.toFixed(1) : '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Temperature + Flow */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 text-sm font-medium">
+                  <Thermometer className="h-4 w-4 text-muted-foreground" />
+                  Temperature Offset
+                </div>
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/30">
+                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Container</th>
+                        <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Offset (°C)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {QTY_CONTAINERS_STATE.map(c => {
+                        const offset = get(`cal_temp_${c.toLowerCase()}_offset`);
+                        return (
+                          <tr key={c} className="border-b last:border-0">
+                            <td className="px-3 py-2 text-xs font-medium">{c}</td>
+                            <td className="px-3 py-2 text-center font-mono text-xs">
+                              {offset != null ? (offset >= 0 ? '+' : '') + offset.toFixed(2) : '—'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 text-sm font-medium">
+                  <Wind className="h-4 w-4 text-muted-foreground" />
+                  Flow Sensor
+                </div>
+                <div className="rounded-lg border px-4 py-3">
+                  <p className="text-xs text-muted-foreground">Pulses per litre</p>
+                  <p className="font-mono text-lg font-semibold">
+                    {get('cal_flow_ppl') != null ? get('cal_flow_ppl').toFixed(1) : '—'}
+                    <span className="ml-1 text-xs font-normal text-muted-foreground">PPL</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // CalibrationSummary — polls /api/calibration/acks for the last-known OK
 // value per (command, container, point) and renders a compact table.
 // Refreshes every 10 s and immediately after the page receives a new ACK.
@@ -1005,8 +1238,8 @@ function CalibrationSummary() {
           Active Calibration Values
         </CardTitle>
         <CardDescription>
-          Last values confirmed by the Mega and saved to EEPROM. Sourced from
-          calibration ACKs — reflects the dashboard calibration history.
+          Historical log of calibration ACK responses. Use the Live EEPROM panel above
+          for the current device state.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -1269,6 +1502,9 @@ export default function CalibrationPage() {
           <FlowTab />
         </TabsContent>
       </Tabs>
+
+      <Separator />
+      <LiveCalibrationState />
 
       <Separator />
       <CalibrationSummary />
