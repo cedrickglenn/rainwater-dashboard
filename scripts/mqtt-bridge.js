@@ -46,7 +46,7 @@ console.log(`[mongo] Connected to ${DB_NAME}`);
 // --- SSE log stream server ---
 // Browsers connect to GET /logs/stream and receive real-time log/debug events.
 // Vercel's api.logs.stream proxies here instead of opening its own MQTT connection.
-const SSE_PORT = process.env.SSE_PORT || 3001;
+const SSE_PORT = process.env.PORT || process.env.SSE_PORT || 3001;
 const sseClients = new Set();
 
 const sseServer = http.createServer((req, res) => {
