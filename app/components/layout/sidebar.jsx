@@ -128,7 +128,9 @@ function NavItem({ item, isCollapsed, onClick }) {
   if (isCollapsed) {
     return (
       <Tooltip>
-        <TooltipTrigger asChild>{link}</TooltipTrigger>
+        <TooltipTrigger asChild>
+          <span className="block">{link}</span>
+        </TooltipTrigger>
         <TooltipContent side="right" className="hidden lg:block">
           {item.name}
         </TooltipContent>
