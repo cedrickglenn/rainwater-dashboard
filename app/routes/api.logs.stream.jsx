@@ -1,7 +1,7 @@
 // Resource route: /api/logs/stream
 //
 // GET — Server-Sent Events stream.
-//       Subscribes to two HiveMQ topics and forwards each message
+//       Subscribes to two MQTT topics and forwards each message
 //       to the browser. Credentials never leave the server.
 //
 // Topics:
@@ -56,8 +56,8 @@ export async function loader({ request }) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const { HIVEMQ_HOST, HIVEMQ_SUB_USERNAME, HIVEMQ_SUB_PASSWORD } = process.env;
-  if (!HIVEMQ_HOST || !HIVEMQ_SUB_USERNAME || !HIVEMQ_SUB_PASSWORD) {
+  const { MQTT_HOST, MQTT_SUB_USERNAME, MQTT_SUB_PASSWORD } = process.env;
+  if (!MQTT_HOST || !MQTT_SUB_USERNAME || !MQTT_SUB_PASSWORD) {
     return new Response('MQTT subscriber credentials not configured', { status: 503 });
   }
 
@@ -79,9 +79,9 @@ export async function loader({ request }) {
       // Initial ping so EventSource knows the stream is alive
       enqueue('ping', { ts: Date.now() });
 
-      client = mqtt.connect(`mqtts://${HIVEMQ_HOST}:8883`, {
-        username:        HIVEMQ_SUB_USERNAME,
-        password:        HIVEMQ_SUB_PASSWORD,
+      client = mqtt.connect(`mqtts://${MQTT_HOST}:8883`, {
+        username:        MQTT_SUB_USERNAME,
+        password:        MQTT_SUB_PASSWORD,
         clientId:        `rw_log_stream_${Math.random().toString(16).slice(2, 10)}`,
         connectTimeout:  8000,
         reconnectPeriod: 3000,

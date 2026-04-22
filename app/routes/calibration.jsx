@@ -100,7 +100,7 @@ export const action = async ({ request }) => {
   if (point && point !== '') cmdLine += `,${point}`;
   if (value && value !== '') cmdLine += `,${value}`;
 
-  const { mqttPublish } = await import('~/lib/hivemq.server');
+  const { mqttPublish } = await import('~/lib/mqtt.server');
   await mqttPublish('rainwater/calibration/commands', cmdLine);
 
   return json({ ok: true, queued: cmdLine });

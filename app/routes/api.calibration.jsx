@@ -3,7 +3,7 @@
 //        Publishes directly to MQTT topic rainwater/calibration/commands.
 
 import { json } from '@remix-run/node';
-import { mqttPublish } from '~/lib/hivemq.server';
+import { mqttPublish } from '~/lib/mqtt.server';
 
 export async function action({ request }) {
     if (request.method !== 'POST') {

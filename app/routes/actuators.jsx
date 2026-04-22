@@ -299,7 +299,7 @@ export const action = async ({ request }) => {
   const formData = await request.formData();
   const intent = formData.get('intent');
 
-  const { mqttPublish } = await import('~/lib/hivemq.server');
+  const { mqttPublish } = await import('~/lib/mqtt.server');
 
   let cmdLines = [];
   let toPersist = [];

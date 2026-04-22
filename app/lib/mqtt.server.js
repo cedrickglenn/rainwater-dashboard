@@ -1,13 +1,13 @@
 /**
- * HiveMQ Cloud MQTT publish helper
+ * MQTT publish helper
  *
  * Opens one connection per call, publishes all messages, then disconnects.
  * Works in Vercel serverless functions — no persistent connection needed.
  *
  * Required env vars:
- *   HIVEMQ_HOST      — e.g. abc123.s1.eu.hivemq.cloud  (no protocol, no port)
- *   HIVEMQ_USERNAME  — MQTT credential username
- *   HIVEMQ_PASSWORD  — MQTT credential password
+ *   MQTT_HOST      — broker hostname (no protocol, no port)
+ *   MQTT_USERNAME  — MQTT credential username
+ *   MQTT_PASSWORD  — MQTT credential password
  */
 
 import mqtt from 'mqtt';
@@ -21,23 +21,22 @@ export function mqttPublish(topic, messages) {
   const list = Array.isArray(messages) ? messages : [messages];
 
   return new Promise((resolve, reject) => {
-    const { HIVEMQ_HOST, HIVEMQ_USERNAME, HIVEMQ_PASSWORD } = process.env;
+    const { MQTT_HOST, MQTT_USERNAME, MQTT_PASSWORD } = process.env;
 
-    if (!HIVEMQ_HOST || !HIVEMQ_USERNAME || !HIVEMQ_PASSWORD) {
-      console.warn('[hivemq] Missing env vars — commands not published');
+    if (!MQTT_HOST || !MQTT_USERNAME || !MQTT_PASSWORD) {
+      console.warn('[mqtt] Missing env vars — commands not published');
       return resolve();
     }
 
-    const client = mqtt.connect(`mqtts://${HIVEMQ_HOST}:8883`, {
-      username: HIVEMQ_USERNAME,
-      password: HIVEMQ_PASSWORD,
+    const client = mqtt.connect(`mqtts://${MQTT_HOST}:8883`, {
+      username: MQTT_USERNAME,
+      password: MQTT_PASSWORD,
       clientId: `rainwater_dash_${Math.random().toString(16).slice(2, 10)}`,
       connectTimeout: 8000,
       reconnectPeriod: 0,
     });
 
     client.once('connect', () => {
-      // Publish all messages sequentially, then disconnect
       let i = 0;
       const publishNext = () => {
         if (i >= list.length) {
@@ -47,7 +46,7 @@ export function mqttPublish(topic, messages) {
         const msg = list[i++];
         client.publish(topic, msg, { qos: 1 }, (err) => {
           if (err) {
-            console.error('[hivemq] Publish error:', err.message);
+            console.error('[mqtt] Publish error:', err.message);
             client.end(true);
             return reject(err);
           }
@@ -58,7 +57,7 @@ export function mqttPublish(topic, messages) {
     });
 
     client.once('error', (err) => {
-      console.error('[hivemq] Connection error:', err.message);
+      console.error('[mqtt] Connection error:', err.message);
       client.end(true);
       reject(err);
     });

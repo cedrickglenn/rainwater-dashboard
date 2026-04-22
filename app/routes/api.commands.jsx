@@ -9,7 +9,7 @@
 
 import { json } from '@remix-run/node';
 import { getDb } from '~/lib/db.server';
-import { mqttPublish } from '~/lib/hivemq.server';
+import { mqttPublish } from '~/lib/mqtt.server';
 
 // ---------------------------------------------------------------------------
 // POST — called by the React actuators/calibration pages
