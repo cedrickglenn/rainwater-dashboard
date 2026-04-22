@@ -138,7 +138,7 @@ export function DashboardLayout({ alertCount = 0, notifications = [], user = nul
           */}
           <main
             className={cn(
-              'flex-1 min-w-0 overflow-x-hidden transition-opacity duration-200',
+              'flex-1 min-w-0 transition-opacity duration-200',
               isNavigating && 'opacity-60 pointer-events-none',
               'px-4 py-4',
               'sm:px-5 sm:py-5',
