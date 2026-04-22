@@ -100,15 +100,16 @@ function NavItem({ item, isCollapsed, onClick }) {
       onClick={onClick}
       className={({ isActive }) =>
         cn(
-          'flex min-h-[48px] items-center gap-3 rounded-xl px-4 py-3',
-          'text-base font-medium transition-all',
+          'flex min-h-[48px] items-center rounded-xl py-3 transition-all',
+          'text-base font-medium',
           'touch-action-manipulation',
           isActive
             ? 'bg-primary/10 text-primary hover:bg-primary/15'
             : 'text-muted-foreground hover:bg-accent hover:text-foreground',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-          // Only collapse visually at the lg breakpoint
-          isCollapsed && 'lg:justify-center lg:px-2'
+          isCollapsed
+            ? 'gap-3 px-4 lg:w-full lg:justify-center lg:gap-0 lg:px-0'
+            : 'gap-3 px-4'
         )
       }
     >
@@ -235,11 +236,16 @@ export function Sidebar({
         aria-label="Main navigation"
       >
         {/* Header - 64px height to match topbar */}
-        <div className="flex h-16 items-center justify-between border-b px-4">
+        <div
+          className={cn(
+            'flex h-16 items-center border-b',
+            isCollapsed ? 'lg:justify-center lg:px-0' : 'justify-between px-4'
+          )}
+        >
           <div
             className={cn(
               'flex items-center gap-3',
-              isCollapsed && 'lg:w-full lg:justify-center'
+              isCollapsed && 'lg:justify-center'
             )}
           >
             {/* Logo - 40px touch target */}
