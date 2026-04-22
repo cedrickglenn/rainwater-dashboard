@@ -35,10 +35,25 @@ export const loader = async () => {
   const [latestDoc, historyDocs, logDocs, heartbeatDoc, weather] = await Promise.all([
     db.collection('sensor_readings').find({}).sort({ timestamp: -1 }).limit(1).next(),
 
-    db.collection('sensor_readings')
-      .find({ timestamp: { $gte: since } })
-      .sort({ timestamp: 1 })
-      .toArray(),
+    db.collection('sensor_readings').aggregate([
+      { $match: { timestamp: { $gte: since } } },
+      {
+        $group: {
+          _id: {
+            $subtract: [
+              { $toLong: '$timestamp' },
+              { $mod: [{ $toLong: '$timestamp' }, 5 * 60 * 1000] },
+            ],
+          },
+          timestamp: { $last: '$timestamp' },
+          ph_c2:   { $last: '$ph_c2' },
+          ph_c6:   { $last: '$ph_c6' },
+          turb_c2: { $last: '$turb_c2' },
+          turb_c6: { $last: '$turb_c6' },
+        },
+      },
+      { $sort: { timestamp: 1 } },
+    ]).toArray(),
 
     db.collection('activity_logs')
       .find({})

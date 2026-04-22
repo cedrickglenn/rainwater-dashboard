@@ -21,7 +21,20 @@ if (process.env.NODE_ENV === 'development') {
     clientPromise = new MongoClient(uri).connect();
 }
 
+let indexesEnsured = false;
+
+async function ensureIndexes(db) {
+    if (indexesEnsured) return;
+    indexesEnsured = true;
+    await Promise.all([
+        db.collection('sensor_readings').createIndex({ timestamp: -1 }, { background: true }),
+        db.collection('activity_logs').createIndex({ timestamp: -1 }, { background: true }),
+    ]);
+}
+
 export async function getDb() {
     const client = await clientPromise;
-    return client.db(process.env.DB_NAME || 'rainwateriot');
+    const db = client.db(process.env.DB_NAME || 'rainwateriot');
+    ensureIndexes(db); // fire-and-forget; indexes are idempotent once created
+    return db;
 }

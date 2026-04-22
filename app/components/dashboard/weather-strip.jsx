@@ -12,15 +12,17 @@ import { cn } from '~/lib/utils';
 
 function RainOutlook({ forecast }) {
   if (!forecast || forecast.length === 0) return null;
-  // Look at the next 24 hours using today's max-precip-probability as a proxy.
   const today = forecast[0];
   const chance = today?.rainChance ?? 0;
 
   if (chance >= 60) {
-    return <span>Rain likely today</span>;
+    return <span>Rain likely — <span className="font-mono font-semibold text-foreground">{chance}%</span> chance</span>;
   }
   if (chance >= 30) {
-    return <span>Chance of rain today</span>;
+    return <span>Chance of rain — <span className="font-mono font-semibold text-foreground">{chance}%</span> today</span>;
+  }
+  if (chance > 0) {
+    return <span>Low rain chance — <span className="font-mono font-semibold text-foreground">{chance}%</span></span>;
   }
   return <span>No rain expected today</span>;
 }
@@ -52,33 +54,31 @@ export function WeatherStrip({ weather, className }) {
         <img
           src={`/weather-icons/${current.icon}.svg`}
           alt=""
-          className="h-10 w-10 flex-shrink-0"
+          className="h-8 w-8 flex-shrink-0"
         />
-        <div className="flex items-baseline gap-1.5">
-          <span className="font-mono text-xl font-semibold tabular-nums">
-            {current.temp}°
-          </span>
-          <span className="text-sm text-muted-foreground">{current.label}</span>
-        </div>
+        <span className="font-mono text-xl font-semibold tabular-nums leading-none">
+          {current.temp}°
+        </span>
+        <span className="text-sm text-muted-foreground leading-none">{current.label}</span>
       </div>
 
       <span className="text-muted-foreground/30">·</span>
 
-      <div className="flex items-center gap-1.5 text-xs">
+      <div className="flex items-center gap-1.5 text-xs leading-none">
         <span className="text-muted-foreground">Humidity</span>
         <span className="font-mono font-semibold">{current.humidity}%</span>
       </div>
 
       <span className="text-muted-foreground/30">·</span>
 
-      <div className="flex items-center gap-1.5 text-xs">
+      <div className="flex items-center gap-1.5 text-xs leading-none">
         <span className="text-muted-foreground">Wind</span>
         <span className="font-mono font-semibold">{current.wind} km/h</span>
       </div>
 
       <span className="text-muted-foreground/30">·</span>
 
-      <div className="text-xs text-muted-foreground">
+      <div className="text-xs text-muted-foreground leading-none">
         <RainOutlook forecast={forecast} />
       </div>
     </div>
