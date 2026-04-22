@@ -12,6 +12,7 @@
  */
 
 import 'dotenv/config';
+import http from 'http';
 import mqtt from 'mqtt';
 import { MongoClient } from 'mongodb';
 import webpush from 'web-push';
@@ -42,6 +43,58 @@ await mongoClient.connect();
 const db = mongoClient.db(DB_NAME);
 console.log(`[mongo] Connected to ${DB_NAME}`);
 
+// --- SSE log stream server ---
+// Browsers connect to GET /logs/stream and receive real-time log/debug events.
+// Vercel's api.logs.stream proxies here instead of opening its own MQTT connection.
+const SSE_PORT = process.env.SSE_PORT || 3001;
+const sseClients = new Set();
+
+const sseServer = http.createServer((req, res) => {
+  if (req.method === 'GET' && req.url === '/logs/stream') {
+    res.writeHead(200, {
+      'Content-Type':      'text/event-stream',
+      'Cache-Control':     'no-cache',
+      'Connection':        'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+    });
+
+    const send = (eventType, data) => {
+      try {
+        res.write(`event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`);
+      } catch {}
+    };
+
+    send('ping', { ts: Date.now() });
+    send('status', { connected: mqttClient?.connected ?? false });
+
+    sseClients.add(send);
+    console.log(`[sse] Client connected (${sseClients.size} total)`);
+
+    req.on('close', () => {
+      sseClients.delete(send);
+      console.log(`[sse] Client disconnected (${sseClients.size} total)`);
+    });
+    return;
+  }
+
+  if (req.method === 'GET' && req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, clients: sseClients.size }));
+    return;
+  }
+
+  res.writeHead(404);
+  res.end();
+});
+
+sseServer.listen(SSE_PORT, () => {
+  console.log(`[sse] Listening on port ${SSE_PORT}`);
+});
+
+function broadcastLog(eventType, data) {
+  for (const send of sseClients) send(eventType, data);
+}
+
 // --- MQTT ---
 const mqttClient = mqtt.connect(`mqtts://${MQTT_HOST}:8883`, {
   username: MQTT_USERNAME,
@@ -52,6 +105,7 @@ const mqttClient = mqtt.connect(`mqtts://${MQTT_HOST}:8883`, {
 
 mqttClient.on('connect', () => {
   console.log('[mqtt] Connected to EMQX');
+  broadcastLog('status', { connected: true });
   mqttClient.subscribe('rainwater/calibration/acks', { qos: 1 }, (err) => {
     if (err) console.error('[mqtt] Subscribe error:', err.message);
     else     console.log('[mqtt] Subscribed to rainwater/calibration/acks');
@@ -75,6 +129,10 @@ mqttClient.on('connect', () => {
   mqttClient.subscribe('rainwater/actuators', { qos: 0 }, (err) => {
     if (err) console.error('[mqtt] Subscribe error:', err.message);
     else     console.log('[mqtt] Subscribed to rainwater/actuators');
+  });
+  mqttClient.subscribe('rainwater/debug', { qos: 0 }, (err) => {
+    if (err) console.error('[mqtt] Subscribe error:', err.message);
+    else     console.log('[mqtt] Subscribed to rainwater/debug');
   });
 });
 
@@ -233,6 +291,11 @@ mqttClient.on('message', async (topic, payload) => {
         await db.collection('activity_logs').insertOne(entry);
         await dispatchPush(db, entry);
       }
+      broadcastLog('log', { raw, level: entry?.level ?? 'INFO', source: entry?.source ?? null, message: entry?.message ?? raw, ts: Date.now(), channel: 'logs' });
+    }
+
+    if (topic === 'rainwater/debug') {
+      broadcastLog('log', { raw, level: 'INFO', source: null, message: raw, ts: Date.now(), channel: 'debug' });
     }
 
     if (topic === 'rainwater/heartbeat') {
@@ -300,15 +363,18 @@ mqttClient.on('message', async (topic, payload) => {
 
 mqttClient.on('error', (err) => {
   console.error('[mqtt] Error:', err.message);
+  broadcastLog('status', { connected: false, error: err.message });
 });
 
 mqttClient.on('reconnect', () => {
   console.log('[mqtt] Reconnecting...');
+  broadcastLog('status', { connected: false, reconnecting: true });
 });
 
 process.on('SIGINT', async () => {
   console.log('\nShutting down...');
   mqttClient.end();
+  sseServer.close();
   await mongoClient.close();
   process.exit(0);
 });

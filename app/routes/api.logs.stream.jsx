@@ -1,54 +1,16 @@
 // Resource route: /api/logs/stream
 //
 // GET — Server-Sent Events stream.
-//       Subscribes to two MQTT topics and forwards each message
-//       to the browser. Credentials never leave the server.
+//       Proxies the Railway bridge SSE endpoint so Vercel serverless never
+//       holds a direct MQTT connection (which leaks clients on EMQX).
 //
-// Topics:
-//   rainwater/logs  — structured L, frames only (meaningful events)
-//   rainwater/debug — raw wsLogf() output (verbose debug, every sensor line)
-//
-// Event types:
+// Event types forwarded from bridge:
 //   ping   — keepalive, payload { ts }
 //   status — MQTT connection state, payload { connected, error? }
 //   log    — parsed log line, payload { raw, level, source, message, ts, channel }
 //            channel: 'logs' | 'debug'
 
-import mqtt from 'mqtt';
-
-// Frame formats in use:
-//   Format A (Mega):  L,<SOURCE>,<LEVEL>,<MESSAGE>
-//   Format B (ESP32): L,<LEVEL>,<CATEGORY>,<MESSAGE>
-// Detected by checking whether parts[1] is a known level token.
-const LEVEL_TOKENS = new Set(['INFO', 'WARN', 'ERR', 'OK']);
-
-function parseLogLine(raw) {
-  const s = raw.trim();
-  if (s.startsWith('L,')) {
-    const parts = s.split(',');
-    if (parts.length >= 4) {
-      let level, source, message;
-      if (LEVEL_TOKENS.has(parts[1])) {
-        // Format B: L,LEVEL,CATEGORY,MESSAGE
-        level   = parts[1];
-        source  = parts[2];
-        message = parts.slice(3).join(',');
-      } else {
-        // Format A: L,SOURCE,LEVEL,MESSAGE
-        source  = parts[1];
-        level   = parts[2];
-        message = parts.slice(3).join(',');
-      }
-      return { raw: s, level, source, message };
-    }
-  }
-  // Unstructured line (raw debug output)
-  return { raw: s, level: 'INFO', source: null, message: s };
-}
-
 export async function loader({ request }) {
-  // Auth guard — requireAdmin throws a redirect, so we catch it here
-  // because EventSource can't follow a redirect.
   try {
     const { requireAdmin } = await import('~/lib/auth.server');
     await requireAdmin(request);
@@ -56,74 +18,25 @@ export async function loader({ request }) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const { MQTT_HOST, MQTT_SUB_USERNAME, MQTT_SUB_PASSWORD } = process.env;
-  if (!MQTT_HOST || !MQTT_SUB_USERNAME || !MQTT_SUB_PASSWORD) {
-    return new Response('MQTT subscriber credentials not configured', { status: 503 });
+  const { BRIDGE_URL } = process.env;
+  if (!BRIDGE_URL) {
+    return new Response('BRIDGE_URL not configured', { status: 503 });
   }
 
   const { signal } = request;
-  const encoder   = new TextEncoder();
-  let   client    = null;
 
-  const stream = new ReadableStream({
-    start(controller) {
-      const enqueue = (eventType, data) => {
-        try {
-          const chunk = `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
-          controller.enqueue(encoder.encode(chunk));
-        } catch {
-          // Client already disconnected
-        }
-      };
+  let bridgeRes;
+  try {
+    bridgeRes = await fetch(`${BRIDGE_URL}/logs/stream`, { signal });
+  } catch (err) {
+    return new Response(`Bridge unreachable: ${err.message}`, { status: 502 });
+  }
 
-      // Initial ping so EventSource knows the stream is alive
-      enqueue('ping', { ts: Date.now() });
+  if (!bridgeRes.ok) {
+    return new Response(`Bridge error: ${bridgeRes.status}`, { status: 502 });
+  }
 
-      client = mqtt.connect(`mqtts://${MQTT_HOST}:8883`, {
-        username:        MQTT_SUB_USERNAME,
-        password:        MQTT_SUB_PASSWORD,
-        clientId:        `rw_log_stream_${Math.random().toString(16).slice(2, 10)}`,
-        connectTimeout:  8000,
-        reconnectPeriod: 3000,
-        clean:           true,
-      });
-
-      client.on('connect', () => {
-        enqueue('status', { connected: true });
-        client.subscribe(['rainwater/logs', 'rainwater/debug'], { qos: 0 });
-      });
-
-      client.on('message', (topic, payload) => {
-        const raw     = payload.toString();
-        const channel = topic === 'rainwater/debug' ? 'debug' : 'logs';
-        const entry   = parseLogLine(raw);
-        enqueue('log', { ...entry, ts: Date.now(), channel });
-      });
-
-      client.on('error', (err) => {
-        enqueue('status', { connected: false, error: err.message });
-      });
-
-      client.on('offline', () => {
-        enqueue('status', { connected: false });
-      });
-
-      client.on('reconnect', () => {
-        enqueue('status', { connected: false, reconnecting: true });
-      });
-
-      // Clean up when the browser disconnects
-      signal.addEventListener('abort', () => {
-        if (client) { client.end(true); client = null; }
-        try { controller.close(); } catch {}
-      });
-    },
-    cancel() {
-      if (client) { client.end(true); client = null; }
-    },
-  });
-
-  return new Response(stream, {
+  return new Response(bridgeRes.body, {
     headers: {
       'Content-Type':      'text/event-stream',
       'Cache-Control':     'no-cache',
