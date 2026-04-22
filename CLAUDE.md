@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Getting Started
+
+DO NOT begin a new chat by doing an extensive exploration of the entire codebase. Instead, read the README and use an Explore agent to read the documentation if you want to get the lay of the land. Of course, once you have a specific need, you can explore as much of the code as you require.
+
 ## Related Firmware Projects
 
 When investigating sensor behaviour, calibration, MQTT/serial protocol, or timing issues, also check these sibling projects (located alongside this repo):
