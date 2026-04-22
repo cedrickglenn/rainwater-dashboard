@@ -97,12 +97,24 @@ function LogLine({ line }) {
     // Batched Mega telemetry cycle — "MEGA|KEY=VALUE|KEY=VALUE|..."
     // Split back into individual [Mega] KEY = VALUE lines for readability.
     if (debugRaw.startsWith('MEGA|')) {
-      const formatted = '[MEGA] ' + debugRaw.slice(5);
+      const pairs = debugRaw.slice(5).split('|').map((p) => {
+        const eq = p.indexOf('=');
+        return eq < 0 ? null : { key: p.slice(0, eq), value: p.slice(eq + 1) };
+      }).filter(Boolean);
       return (
-        <div className="flex gap-2 font-mono text-xs leading-relaxed opacity-50">
-          <span className="shrink-0 text-zinc-400 dark:text-zinc-500">{formatTime(line.ts)}</span>
-          <span className="shrink-0 w-9 text-zinc-400 dark:text-zinc-500">DBG</span>
-          <span className="break-all text-zinc-400 dark:text-zinc-500">{formatted}</span>
+        <div className="font-mono text-xs opacity-50 mb-0.5">
+          <div className="flex gap-2">
+            <span className="shrink-0 text-zinc-400 dark:text-zinc-500">{formatTime(line.ts)}</span>
+            <span className="shrink-0 w-9 text-zinc-400 dark:text-zinc-500">DBG</span>
+            <span className="text-zinc-500 dark:text-zinc-400">[Mega] Sensors</span>
+          </div>
+          <div className="ml-[4.25rem] grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-0 leading-relaxed">
+            {pairs.map(({ key, value }) => (
+              <span key={key} className="text-zinc-400 dark:text-zinc-500 whitespace-nowrap">
+                <span className="text-zinc-500 dark:text-zinc-400">{key}</span>{' = '}{value}
+              </span>
+            ))}
+          </div>
         </div>
       );
     }
