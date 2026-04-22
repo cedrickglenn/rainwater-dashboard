@@ -83,7 +83,7 @@ export default function LoginPage() {
                 autoFocus
                 required
                 className={cn(
-                  'w-full rounded-xl border bg-background py-3 pl-10 pr-4 text-sm',
+                  'w-full rounded-xl border bg-background py-3 pl-10 pr-4 text-base sm:text-sm',
                   'focus:outline-none focus:ring-2 focus:ring-ring',
                   actionData?.error && 'border-destructive'
                 )}
@@ -106,7 +106,7 @@ export default function LoginPage() {
                 autoComplete="current-password"
                 required
                 className={cn(
-                  'w-full rounded-xl border bg-background py-3 pl-10 pr-10 text-sm',
+                  'w-full rounded-xl border bg-background py-3 pl-10 pr-10 text-base sm:text-sm',
                   'focus:outline-none focus:ring-2 focus:ring-ring',
                   actionData?.error && 'border-destructive'
                 )}
