@@ -38,13 +38,13 @@ export const SENSOR_THRESHOLDS = {
     safeRange: '< 500 mg/L',
   },
 
-  // Temperature: Ideal for storage 15-25°C
+  // Temperature: Ideal for storage 15-25°C; also drives Nernst pH compensation
   temperature: {
     min: 15,
     max: 25,
     unit: '°C',
     name: 'Temperature',
-    description: 'Water temperature',
+    description: 'Water temperature — also used to apply Nernst pH compensation in firmware',
     safeRange: '15 - 25°C',
   },
 };

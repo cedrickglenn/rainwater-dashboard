@@ -97,7 +97,7 @@ export const loader = async () => {
 
   const pipeline = {
     ffState:       latestDoc?.ff_state       ?? 0,
-    filterMode:    latestDoc?.filter_mode    ?? 0,
+    filterMode:    latestDoc?.filter_mode ?? 0,
     backwashState: latestDoc?.backwash_state ?? 0,
   };
 

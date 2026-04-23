@@ -426,7 +426,7 @@ export default function SensorsPage() {
         <CardHeader>
           <CardTitle className="text-base">PNSDW 2017 Thresholds Reference</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-3">
             {(['ph', 'turbidity', 'temperature']).map((key) => {
               const threshold = SENSOR_THRESHOLDS[key];
@@ -445,6 +445,19 @@ export default function SensorsPage() {
                 </div>
               );
             })}
+          </div>
+
+          {/* Temperature → pH dependency note */}
+          <div className="flex items-start gap-2 rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+            <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+            <p>
+              <span className="font-medium text-foreground">Temperature affects pH accuracy.</span>{' '}
+              The firmware applies a Nernst temperature correction to each pH reading using the
+              co-located DS18B20 sensor. At 30 °C the electrode slope is ~1.7% higher than at the
+              25 °C calibration reference — without this correction, pH readings near the safe-range
+              boundaries can be off by 0.1–0.2 units. Calibrate pH buffers at room temperature
+              and ensure the temperature sensor is submerged alongside the pH probe.
+            </p>
           </div>
         </CardContent>
       </Card>

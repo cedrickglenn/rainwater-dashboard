@@ -21,6 +21,6 @@ export const sensorMetadata = {
   },
   temperature: {
     icon: 'Thermometer',
-    description: 'Measures water temperature',
+    description: 'Measures water temperature. Also drives pH accuracy — the firmware applies a Nernst temperature correction to each pH reading using the co-located sensor.',
   },
 };

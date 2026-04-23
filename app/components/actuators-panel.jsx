@@ -379,7 +379,7 @@ export function ActuatorsPanel({ persisted, filterMode, backwashState }) {
   };
 
   const handleFilterMode = (mode) => {
-    const modeNum = mode === 'CHARCOAL' ? 1 : 2;
+    const modeNum = mode === 'CHARCOAL' ? 0 : 1;
     setLocalFilterMode(modeNum);
     postCommands({ intent: 'set_filter_mode', mode });
   };
@@ -441,11 +441,11 @@ export function ActuatorsPanel({ persisted, filterMode, backwashState }) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-3">
-            <Button variant={localFilterMode === 1 ? 'default' : 'outline'} className="gap-2" onClick={() => handleFilterMode('CHARCOAL')}>
+            <Button variant={localFilterMode === 0 ? 'default' : 'outline'} className="gap-2" onClick={() => handleFilterMode('CHARCOAL')}>
               <Filter className="h-4 w-4" />
               Charcoal Only
             </Button>
-            <Button variant={localFilterMode === 2 ? 'default' : 'outline'} className="gap-2" onClick={() => handleFilterMode('BOTH')}>
+            <Button variant={localFilterMode === 1 ? 'default' : 'outline'} className="gap-2" onClick={() => handleFilterMode('BOTH')}>
               <Filter className="h-4 w-4" />
               Charcoal + RO
             </Button>

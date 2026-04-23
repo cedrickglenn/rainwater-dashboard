@@ -1,10 +1,9 @@
 /**
  * PipelineDiagram — mode-aware C2 → [C5] → C6 flow.
  *
- * filterMode values from the Mega:
- *   0 = Off            — all three containers dimmed
- *   1 = Charcoal only  — C2 → C6 active, C5 dimmed + "Bypassed" label
- *   2 = Charcoal + RO  — C2 → C5 → C6 all active
+ * filterMode values from the Mega (matches pipeline.h FilterMode enum):
+ *   0 = Charcoal only  — C2 → C6 active, C5 dimmed + "Bypassed" label
+ *   1 = Charcoal + RO  — C2 → C5 → C6 all active
  *
  * C6 is the output node and carries the overall potability status, so the
  * standalone WaterQualityStatus card is no longer needed.
@@ -154,17 +153,16 @@ function VerticalConnector({ active }) {
 }
 
 export function PipelineDiagram({ containers, filterMode }) {
-  // filterMode: 0 = Off, 1 = Charcoal only, 2 = Charcoal + RO
-  const modeOn = filterMode !== 0;
-  const c5Active = modeOn && filterMode === 2;
-  const c2Active = modeOn;
-  const c6Active = modeOn;
+  // filterMode: 0 = Charcoal only, 1 = Charcoal + RO (matches Mega firmware enum)
+  const c5Active = filterMode === 1;
+  const c2Active = true;
+  const c6Active = true;
 
-  // Active connector: C2 → C5 only when mode 2; C5 → C6 only when mode 2;
-  // C2 → C6 direct is active whenever charcoal-only is selected.
-  const c2ToC5Active = filterMode === 2;
-  const c5ToC6Active = filterMode === 2;
-  const c2ToC6Direct = filterMode === 1;
+  // Active connector: C2 → C5 only when Charcoal+RO; C5 → C6 only when Charcoal+RO;
+  // C2 → C6 direct is active in Charcoal-only mode.
+  const c2ToC5Active = filterMode === 1;
+  const c5ToC6Active = filterMode === 1;
+  const c2ToC6Direct = filterMode === 0;
 
   return (
     <section className="space-y-2">

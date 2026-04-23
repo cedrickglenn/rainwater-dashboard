@@ -2,7 +2,7 @@
  * PipelineStatus Component
  * Shows the current state of the three main state machines from the Mega:
  *   - First Flush (ff_state: 0=IDLE, 1=FLUSHING, 2=DIVERTING)
- *   - Filter Mode (filter_mode: 0=OFF, 1=CHARCOAL, 2=CHARCOAL+RO)
+ *   - Filter Mode (filter_mode: 0=CHARCOAL_ONLY, 1=CHARCOAL_AND_RO)
  *   - Backwash    (backwash_state: 0=IDLE, 1=RUNNING)
  *
  * Also shows hardware online/offline status derived from the last heartbeat timestamp.
@@ -28,7 +28,6 @@ const FF_STATES = [
 
 // ── Filter mode labels ────────────────────────────────────────────────────
 const FILTER_MODES = [
-  { label: 'Off',            variant: 'secondary' },
   { label: 'Charcoal',       variant: 'safe'      },
   { label: 'Charcoal + RO',  variant: 'safe'      },
 ];
