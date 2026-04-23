@@ -89,8 +89,8 @@ export function Toaster() {
   const [items, setItems] = useState([]);
 
   useEffect(() => {
-    // Prepend so newest toast appears at the top of the stack
-    const handler = (entry) => setItems((prev) => [entry, ...prev]);
+    // Prepend so newest toast appears at the top of the stack, cap at 4
+    const handler = (entry) => setItems((prev) => [entry, ...prev].slice(0, 4));
     listeners.add(handler);
     return () => listeners.delete(handler);
   }, []);
