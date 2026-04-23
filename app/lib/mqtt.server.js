@@ -44,7 +44,7 @@ export function mqttPublish(topic, messages) {
           return resolve();
         }
         const msg = list[i++];
-        client.publish(topic, msg, { qos: 1 }, (err) => {
+        client.publish(topic, msg, { qos: 0 }, (err) => {
           if (err) {
             console.error('[mqtt] Publish error:', err.message);
             client.end(true);

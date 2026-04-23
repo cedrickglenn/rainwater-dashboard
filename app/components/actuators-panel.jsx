@@ -273,6 +273,15 @@ export function ActuatorsPanel({ persisted, filterMode, backwashState }) {
     )
   );
 
+  // Optimistic local state for filter mode and backwash so buttons update
+  // immediately on click without waiting for a sensor packet from the Mega.
+  const [localFilterMode, setLocalFilterMode] = useState(filterMode);
+  const [localBackwashState, setLocalBackwashState] = useState(backwashState);
+
+  // Sync back when the server confirms a new value.
+  useEffect(() => { setLocalFilterMode(filterMode); }, [filterMode]);
+  useEffect(() => { setLocalBackwashState(backwashState); }, [backwashState]);
+
   const pendingTimersRef = useRef({});
   const cmdDebounceRef = useRef({});
   const qaInhibitRef = useRef(new Set());
@@ -370,13 +379,14 @@ export function ActuatorsPanel({ persisted, filterMode, backwashState }) {
   };
 
   const handleFilterMode = (mode) => {
+    const modeNum = mode === 'CHARCOAL' ? 1 : 2;
+    setLocalFilterMode(modeNum);
     postCommands({ intent: 'set_filter_mode', mode });
-    revalidator.revalidate();
   };
 
   const handleBackwash = (action) => {
+    setLocalBackwashState(action === 'START' ? 1 : 0);
     postCommands({ intent: 'backwash', action });
-    revalidator.revalidate();
   };
 
   return (
@@ -431,11 +441,11 @@ export function ActuatorsPanel({ persisted, filterMode, backwashState }) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-3">
-            <Button variant={filterMode === 1 ? 'default' : 'outline'} className="gap-2" onClick={() => handleFilterMode('CHARCOAL')}>
+            <Button variant={localFilterMode === 1 ? 'default' : 'outline'} className="gap-2" onClick={() => handleFilterMode('CHARCOAL')}>
               <Filter className="h-4 w-4" />
               Charcoal Only
             </Button>
-            <Button variant={filterMode === 2 ? 'default' : 'outline'} className="gap-2" onClick={() => handleFilterMode('BOTH')}>
+            <Button variant={localFilterMode === 2 ? 'default' : 'outline'} className="gap-2" onClick={() => handleFilterMode('BOTH')}>
               <Filter className="h-4 w-4" />
               Charcoal + RO
             </Button>
@@ -447,14 +457,14 @@ export function ActuatorsPanel({ persisted, filterMode, backwashState }) {
             <div className="flex items-center gap-2">
               <RotateCcw className="h-4 w-4 text-amber-500" />
               <span className="text-sm font-medium">Backwash</span>
-              {backwashState === 1 && <Badge className="bg-amber-500 text-white text-xs">Running</Badge>}
+              {localBackwashState === 1 && <Badge className="bg-amber-500 text-white text-xs">Running</Badge>}
             </div>
             <div className="flex flex-wrap gap-3">
-              <Button variant="outline" size="sm" className="gap-2" disabled={backwashState === 1} onClick={() => handleBackwash('START')}>
+              <Button variant="outline" size="sm" className="gap-2" disabled={localBackwashState === 1} onClick={() => handleBackwash('START')}>
                 <PlayCircle className="h-4 w-4" />
                 Start Backwash
               </Button>
-              <Button variant={backwashState === 1 ? 'destructive' : 'outline'} size="sm" className="gap-2" disabled={backwashState === 0} onClick={() => handleBackwash('STOP')}>
+              <Button variant={localBackwashState === 1 ? 'destructive' : 'outline'} size="sm" className="gap-2" disabled={localBackwashState === 0} onClick={() => handleBackwash('STOP')}>
                 <StopCircle className="h-4 w-4" />
                 Stop Backwash
               </Button>
