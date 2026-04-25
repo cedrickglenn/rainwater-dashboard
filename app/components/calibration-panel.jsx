@@ -1104,9 +1104,9 @@ function CalibrationSummary() {
   );
 }
 
-function CalibrationModeToggle() {
+function CalibrationModeToggle({ initialCalMode = false }) {
   const fetcher = useFetcher();
-  const [calMode, setCalMode] = useState(false);
+  const [calMode, setCalMode] = useState(initialCalMode);
 
   const submitting = fetcher.state === 'submitting';
   const pending = submitting;
@@ -1199,7 +1199,7 @@ const TABS = [
   { value: 'flow', label: 'Flow', Icon: Wind },
 ];
 
-export function CalibrationPanel() {
+export function CalibrationPanel({ initialCalMode = false }) {
   const [activeTab, setActiveTab] = useState('ph');
 
   return (
@@ -1223,7 +1223,7 @@ export function CalibrationPanel() {
         </CardContent>
       </Card>
 
-      <CalibrationModeToggle />
+      <CalibrationModeToggle initialCalMode={initialCalMode} />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <div className="sm:hidden">

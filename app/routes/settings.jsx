@@ -100,6 +100,7 @@ export const loader = async ({ request }) => {
     persisted,
     filterMode:    latestSensor?.filter_mode    ?? 0,
     backwashState: latestSensor?.backwash_state ?? 0,
+    calMode:       (latestSensor?.cal_mode ?? 0) === 1,
   });
 };
 
@@ -486,7 +487,7 @@ const TABS = [
 ];
 
 export default function SettingsPage() {
-  const { ffConfig, persisted, filterMode, backwashState } = useLoaderData();
+  const { ffConfig, persisted, filterMode, backwashState, calMode } = useLoaderData();
   const ffFetcher = useFetcher();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -558,7 +559,7 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="calibration" className="space-y-6">
-          <CalibrationPanel />
+          <CalibrationPanel initialCalMode={calMode} />
         </TabsContent>
 
         <TabsContent value="first_flush" className="space-y-6">

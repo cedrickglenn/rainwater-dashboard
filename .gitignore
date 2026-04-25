@@ -4,3 +4,4 @@ node_modules
 /build
 /public/build
 .env
+THESIS_SYSTEM_OVERVIEW.md
