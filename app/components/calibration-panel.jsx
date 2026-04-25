@@ -79,7 +79,20 @@ const ACK_TIMEOUT_MS = 15000;
 
 function ackPrefixFor(cmdLine) {
   if (!cmdLine) return null;
-  if (cmdLine.startsWith('C,CAL_RESET,')) return 'A,CAL_RESET,OK';
+  // CAL_RESET variants — check most-specific prefixes first
+  if (cmdLine.startsWith('C,CAL_RESET,ALL'))  return 'A,CAL_RESET,OK';
+  if (cmdLine.startsWith('C,CAL_RESET,FLOW')) return 'A,CAL_RESET,FLOW,OK';
+  if (cmdLine.startsWith('C,CAL_RESET,')) {
+    // C,CAL_RESET,LVL,C2 → A,CAL_RESET,LVL,C2,OK
+    const parts = cmdLine.split(',');
+    return `A,CAL_RESET,${parts[2]},${parts[3]},OK`;
+  }
+  // CAL_LVL with inline value: drop 5th token so prefix matches ACK
+  // (ACK inserts ",OK," before the echoed value: A,CAL_LVL,C2,FULL,OK,45.2)
+  const parts = cmdLine.split(',');
+  if (parts.length >= 5 && parts[1] === 'CAL_LVL') {
+    return 'A,' + parts.slice(1, 4).join(',');
+  }
   return 'A,' + cmdLine.slice(2);
 }
 
@@ -316,6 +329,57 @@ function LiveReading({
   );
 }
 
+function SensorResetButton({ sensor, containers }) {
+  const fetcher = useFetcher();
+  const isGlobal = !containers || containers.length === 0;
+  const [container, setContainer] = useState(isGlobal ? null : containers[0]);
+  const submitting = fetcher.state === 'submitting';
+
+  return (
+    <div className="mt-4 rounded-lg border border-[color:var(--water-unsafe)]/20 p-3 space-y-2">
+      <p className="text-xs font-medium text-[color:var(--water-unsafe)]">
+        Reset {sensor} Calibration
+      </p>
+      {!isGlobal && (
+        <div className="flex items-center gap-2">
+          <Label className="text-xs w-20 shrink-0">Container</Label>
+          <Select value={container} onValueChange={setContainer}>
+            <SelectTrigger className="h-7 w-40 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All containers</SelectItem>
+              {containers.map((c) => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      <fetcher.Form method="post" action={CAL_ACTION}>
+        <input type="hidden" name="command" value="CAL_RESET" />
+        <input type="hidden" name="container" value={isGlobal ? 'FLOW' : sensor} />
+        {!isGlobal && <input type="hidden" name="point" value={container} />}
+        <Button
+          type="submit"
+          variant="outline"
+          size="sm"
+          disabled={submitting}
+          className="gap-1.5 text-[color:var(--water-unsafe)] border-[color:var(--water-unsafe)]/30 hover:bg-[color:var(--water-unsafe)]/10"
+        >
+          <RotateCcw className="h-3 w-3" />
+          {submitting
+            ? 'Sending…'
+            : isGlobal
+              ? 'Reset Flow'
+              : `Reset ${sensor} — ${container}`}
+        </Button>
+      </fetcher.Form>
+      <AckStatus fetcherData={fetcher.data} submitting={submitting} />
+    </div>
+  );
+}
+
 function PHTab() {
   const fetcher = useFetcher();
   const [container, setContainer] = useState('C2');
@@ -390,6 +454,7 @@ function PHTab() {
         </fetcher.Form>
       </div>
 
+      <SensorResetButton sensor="PH" containers={PH_CONTAINERS} />
       <AckStatus fetcherData={fetcher.data} submitting={submitting} />
     </CalSection>
   );
@@ -478,6 +543,7 @@ function TurbidityTab() {
         </fetcher.Form>
       </div>
 
+      <SensorResetButton sensor="TURB" containers={TURB_CONTAINERS} />
       <AckStatus fetcherData={fetcher.data} submitting={submitting} />
     </CalSection>
   );
@@ -487,6 +553,24 @@ function LevelTab() {
   const fetcher = useFetcher();
   const [container, setContainer] = useState('C2');
   const submitting = fetcher.state === 'submitting';
+  const [rawDist, setRawDist] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function poll() {
+      try {
+        const res = await fetch('/api/sensors/latest');
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (cancelled) return;
+        const v = data[`raw_dist_${container.toLowerCase()}`];
+        setRawDist(v != null ? Number(v) : null);
+      } catch {}
+    }
+    poll();
+    const id = setInterval(poll, 2000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [container]);
 
   return (
     <CalSection
@@ -522,6 +606,9 @@ function LevelTab() {
             <input type="hidden" name="command" value="CAL_LVL" />
             <input type="hidden" name="container" value={container} />
             <input type="hidden" name="point" value="EMPTY" />
+            {rawDist != null && (
+              <input type="hidden" name="value" value={rawDist.toFixed(1)} />
+            )}
             <Button type="submit" variant="outline" className="w-full" disabled={submitting}>
               {submitting ? 'Sending…' : 'Set Empty Distance'}
             </Button>
@@ -538,6 +625,9 @@ function LevelTab() {
             <input type="hidden" name="command" value="CAL_LVL" />
             <input type="hidden" name="container" value={container} />
             <input type="hidden" name="point" value="FULL" />
+            {rawDist != null && (
+              <input type="hidden" name="value" value={rawDist.toFixed(1)} />
+            )}
             <Button type="submit" variant="outline" className="w-full" disabled={submitting}>
               {submitting ? 'Sending…' : 'Set Full Distance'}
             </Button>
@@ -545,6 +635,7 @@ function LevelTab() {
         </div>
       </div>
 
+      <SensorResetButton sensor="LVL" containers={LEVEL_CONTAINERS} />
       <AckStatus fetcherData={fetcher.data} submitting={submitting} />
     </CalSection>
   );
@@ -609,6 +700,7 @@ function TemperatureTab() {
         </fetcher.Form>
       </div>
 
+      <SensorResetButton sensor="TEMP" containers={TEMP_CONTAINERS} />
       <AckStatus fetcherData={fetcher.data} submitting={submitting} />
     </CalSection>
   );
@@ -663,6 +755,7 @@ function FlowTab() {
         </fetcher.Form>
       </div>
 
+      <SensorResetButton sensor="FLOW" containers={[]} />
       <AckStatus fetcherData={fetcher.data} submitting={submitting} />
     </CalSection>
   );
