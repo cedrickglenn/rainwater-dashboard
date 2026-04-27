@@ -10,12 +10,13 @@ DO NOT begin a new chat by doing an extensive exploration of the entire codebase
 
 When investigating sensor behaviour, calibration, MQTT/serial protocol, or timing issues, also check these sibling projects (located alongside this repo):
 
-| Project | Path | Role |
-|---------|------|------|
+| Project               | Path                            | Role                                                                   |
+| --------------------- | ------------------------------- | ---------------------------------------------------------------------- |
 | Arduino Mega firmware | `../rainwaterIOT/RainwaterIOT/` | Sensor reading, actuator control, calibration, EEPROM, serial protocol |
-| ESP32 bridge firmware | `../RainwaterIOT-ESP32/` | WiFi/MQTT bridge between Mega and EMQX cloud |
+| ESP32 bridge firmware | `../RainwaterIOT-ESP32/`        | WiFi/MQTT bridge between Mega and EMQX cloud                           |
 
 Key files to reach for:
+
 - `rainwaterIOT/RainwaterIOT/src/sensors.cpp` — ultrasonic & sensor reading
 - `rainwaterIOT/RainwaterIOT/src/comms.cpp` — serial protocol, calibration command handlers
 - `rainwaterIOT/RainwaterIOT/src/calibration.cpp` — EEPROM storage, cal apply functions
@@ -77,6 +78,7 @@ Generate VAPID keys: `npx web-push generate-vapid-keys`
 ### Container Pipeline
 
 Water flows C2 → C5 → C6:
+
 - **C2**: Raw rainwater collection tank
 - **C5**: Mechanical + carbon filtration tank
 - **C6**: UV sterilization tank (final potable output)
@@ -97,14 +99,14 @@ Each container has: level sensor, pH, turbidity, temperature, and TDS sensors.
 
 Remix file-based routing in `app/routes/`. Key routes:
 
-| File | Purpose |
-|------|---------|
-| `_index.jsx` | Dashboard home — aggregates sensors, weather, activity |
-| `sensors.jsx` | Per-container sensor detail + historical charts |
-| `actuators.jsx` | Pump, filter, UV lamp toggles |
-| `calibration.jsx` | Level sensor calibration UI |
-| `login.jsx` | Auth page |
-| `api.*.jsx` | API endpoints (sensor ingest, commands, ACK polling) |
+| File              | Purpose                                                |
+| ----------------- | ------------------------------------------------------ |
+| `_index.jsx`      | Dashboard home — aggregates sensors, weather, activity |
+| `sensors.jsx`     | Per-container sensor detail + historical charts        |
+| `actuators.jsx`   | Pump, filter, UV lamp toggles                          |
+| `calibration.jsx` | Level sensor calibration UI                            |
+| `login.jsx`       | Auth page                                              |
+| `api.*.jsx`       | API endpoints (sensor ingest, commands, ACK polling)   |
 
 ### Key Libraries (`app/lib/`)
 
@@ -117,11 +119,11 @@ Remix file-based routing in `app/routes/`. Key routes:
 
 ### Potability Thresholds (WHO/EPA, applied to C6 only)
 
-| Sensor | Safe Range |
-|--------|-----------|
-| pH | 6.5 – 8.5 |
-| Turbidity | < 5 NTU |
-| TDS | < 500 mg/L |
+| Sensor      | Safe Range |
+| ----------- | ---------- |
+| pH          | 6.5 – 8.5  |
+| Turbidity   | < 5 NTU    |
+| TDS         | < 500 mg/L |
 | Temperature | 15 – 25 °C |
 
 ### Auth Roles
@@ -130,18 +132,19 @@ Remix file-based routing in `app/routes/`. Key routes:
 
 ### MQTT Topics
 
-| Topic | Direction | Purpose |
-|-------|-----------|---------|
-| `rainwater/commands` | Dashboard → Device | Command batch (e.g. `C,PUMP,PUMP_ON,ON`) |
-| `rainwater/acks` | Device → Bridge | Command acknowledgement |
-| `rainwater/calibration/acks` | Device → Bridge | Calibration acknowledgement |
-| `rainwater/logs` | Device → Bridge | Device system logs (`L,<LEVEL>,<CATEGORY>,<MESSAGE>`) |
-| `rainwater/sensors` | Device → Bridge | Alternative sensor push (vs HTTP POST) |
-| `rainwater/heartbeat` | Device → Bridge | Periodic heartbeat |
+| Topic                        | Direction          | Purpose                                               |
+| ---------------------------- | ------------------ | ----------------------------------------------------- |
+| `rainwater/commands`         | Dashboard → Device | Command batch (e.g. `C,PUMP,PUMP_ON,ON`)              |
+| `rainwater/acks`             | Device → Bridge    | Command acknowledgement                               |
+| `rainwater/calibration/acks` | Device → Bridge    | Calibration acknowledgement                           |
+| `rainwater/logs`             | Device → Bridge    | Device system logs (`L,<LEVEL>,<CATEGORY>,<MESSAGE>`) |
+| `rainwater/sensors`          | Device → Bridge    | Alternative sensor push (vs HTTP POST)                |
+| `rainwater/heartbeat`        | Device → Bridge    | Periodic heartbeat                                    |
 
 ## Common Patterns
 
 **Loader (server-side fetch):**
+
 ```js
 export const loader = async ({ request }) => {
   const user = await requireOperator(request);
@@ -152,6 +155,7 @@ export const loader = async ({ request }) => {
 ```
 
 **Action (form submission):**
+
 ```js
 export const action = async ({ request }) => {
   const formData = await request.formData();
@@ -161,6 +165,7 @@ export const action = async ({ request }) => {
 ```
 
 **Publishing a command:**
+
 ```js
 import { mqttPublish } from '~/lib/hivemq.server';
 await mqttPublish('rainwater/commands', 'C,PUMP,PUMP_ON,ON');
@@ -199,25 +204,25 @@ Monochromatic teal-based palette. Hierarchy comes from spacing and weight, not c
 
 **CSS variable names follow shadcn/ui convention (HSL values in `tailwind.css`).**
 
-| Token | Light | Dark | Usage |
-|-------|-------|------|-------|
-| `--background` | `#F4F7F9` | `#0C1A24` | Page background |
-| `--card` | `#FFFFFF` | `#132130` | Card surfaces |
-| `--card-elevated` | `#EEF3F7` | `#1A2E3F` | Nested panels, inputs |
-| `--border` | `#DDE4EB` | `#253D52` | All borders |
-| `--primary` | `#1A6B8A` | `#38B2D4` | Brand color, interactive elements |
-| `--primary-light` | `#E8F4F9` | `#0F2A38` | Active/hover tinted backgrounds |
-| `--foreground` | `#0F1F2B` | `#E8F3F8` | Primary text |
-| `--muted-foreground` | `#5E7A8A` | `#6E96AA` | Labels, captions, secondary text |
+| Token                | Light     | Dark      | Usage                             |
+| -------------------- | --------- | --------- | --------------------------------- |
+| `--background`       | `#F4F7F9` | `#0C1A24` | Page background                   |
+| `--card`             | `#FFFFFF` | `#132130` | Card surfaces                     |
+| `--card-elevated`    | `#EEF3F7` | `#1A2E3F` | Nested panels, inputs             |
+| `--border`           | `#DDE4EB` | `#253D52` | All borders                       |
+| `--primary`          | `#1A6B8A` | `#38B2D4` | Brand color, interactive elements |
+| `--primary-light`    | `#E8F4F9` | `#0F2A38` | Active/hover tinted backgrounds   |
+| `--foreground`       | `#0F1F2B` | `#E8F3F8` | Primary text                      |
+| `--muted-foreground` | `#5E7A8A` | `#6E96AA` | Labels, captions, secondary text  |
 
 **Status / water quality colors** (same in both modes, kept consistent):
 
-| Status | Color | Hex | Usage |
-|--------|-------|-----|-------|
-| Safe | Teal-green | `#16A876` | SAFE water quality, online indicators |
-| Warning | Amber | `#D97706` | WARNING quality, caution states |
-| Unsafe / Error | Rose | `#DC2645` | UNSAFE quality, errors, destructive actions |
-| Unknown | Muted grey | use `--muted-foreground` | No data / sensor offline |
+| Status         | Color      | Hex                      | Usage                                       |
+| -------------- | ---------- | ------------------------ | ------------------------------------------- |
+| Safe           | Teal-green | `#16A876`                | SAFE water quality, online indicators       |
+| Warning        | Amber      | `#D97706`                | WARNING quality, caution states             |
+| Unsafe / Error | Rose       | `#DC2645`                | UNSAFE quality, errors, destructive actions |
+| Unknown        | Muted grey | use `--muted-foreground` | No data / sensor offline                    |
 
 ### Border Radius
 
@@ -234,6 +239,7 @@ Example: a pH card showing 7.2 (safe) gets a subtle `#16A876` tint. The same car
 ### Navigation Structure
 
 Sidebar nav items (in order):
+
 1. **Dashboard** — `/` — all roles
 2. **Sensors** — `/sensors` — all roles
 3. **History** — `/history` — all roles
@@ -244,6 +250,7 @@ Actuators and Calibration are **tabs within Settings**, not top-level nav items.
 ### Settings Tabs (in order)
 
 Only include tabs that have real backend persistence or hardware integration:
+
 1. **Actuators** — pump/valve control (operator+)
 2. **Calibration** — sensor calibration (admin)
 3. **First Flush** — flow threshold + duration, sends MQTT to Mega (admin)
@@ -257,12 +264,14 @@ Tabs with no real persistence (Display preferences, Sensor offsets, Data logging
 **Concept:** A teardrop shape with a flat ECG-style pulse line across the lower interior. The drop = rain/water. The pulse = sensing/measurement. Together they read as "water being monitored."
 
 **Rules:**
+
 - Flat, no gradient, no highlight blob, no drop shadow
 - Single color: `#1A6B8A` on light backgrounds, `#38B2D4` on dark, white when on a colored background
 - The pulse line is rendered as a `stroke` path (not filled), white or `currentColor`
 - The teardrop is geometric and symmetrical — not the freehand blob in the old icon
 
 **Files:**
+
 - `public/favicon.svg` — 32×32 or 100×100 viewBox, no background, transparent, single teal color
 - `public/icons/icon.svg` — 512×512, rounded-square teal background (`#1A6B8A`), white mark centered (for PWA home screen)
 - Sidebar badge: inline `<svg>` of the mark (not Lucide `<Droplets>`), `fill="currentColor"`, inside the existing `bg-primary rounded-xl` badge
@@ -274,13 +283,15 @@ Tabs with no real persistence (Display preferences, Sensor offsets, Data logging
 The homepage answers one question: **is the system working right now?**
 
 Layout order reflects operational priority:
+
 1. Pipeline status strip — hardware online, first-flush state, filter mode
-2. Mode-aware pipeline diagram — shows the *active* flow path, not all containers equally
+2. Mode-aware pipeline diagram — shows the _active_ flow path, not all containers equally
 3. Before/after trend charts — pH and turbidity: C2 (raw) vs C6 (output), 24h
 4. Compact weather strip — single row, not a card
 5. Activity log — full width, operationally the most relevant content
 
 **Mode-aware pipeline rule:** The diagram always shows all containers (C2, C5, C6), but reflects the active `filter_mode`:
+
 - `Charcoal only (1)`: C2 → C6 active (teal), C5 dimmed with "Bypassed" label
 - `Charcoal + RO (2)`: C2 → C5 → C6 all active
 - `Off (0)`: all dimmed
@@ -297,3 +308,70 @@ Layout order reflects operational priority:
 - Do not use card hover lift effects (`hover:-translate-y-1`) on data cards — these are dashboards, not marketing pages
 - Do not use glass morphism (`backdrop-blur` + transparency) on primary content surfaces — only on the sticky topbar
 - Do not add decorative elements (wave SVGs, water drop illustrations, etc.) — the data is the design
+
+---
+
+## Behavioral Guidelines
+
+Reduce common LLM coding mistakes. These guidelines bias toward caution over speed — use judgment for trivial tasks.
+
+### 1. Think Before Coding
+
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+Before implementing:
+
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them — don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+### 2. Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+### 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it — don't delete it.
+
+When your changes create orphans:
+
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+### 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.

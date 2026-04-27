@@ -84,7 +84,9 @@ export function getDateLabel(date) {
  * @returns {string} - Formatted string for log display
  */
 export function formatLogDate(date) {
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
+  if (!date) return 'Unknown time';
+  const dateObj = typeof date === 'string' ? parseISO(date) : new Date(date);
+  if (isNaN(dateObj.getTime())) return 'Unknown time';
   const diffMinutes = differenceInMinutes(new Date(), dateObj);
 
   if (diffMinutes < 1) {
