@@ -43,43 +43,113 @@ await mongoClient.connect();
 const db = mongoClient.db(DB_NAME);
 console.log(`[mongo] Connected to ${DB_NAME}`);
 
-// --- SSE log stream server ---
-// Browsers connect to GET /logs/stream and receive real-time log/debug events.
-// Vercel's api.logs.stream proxies here instead of opening its own MQTT connection.
+// --- SSE server ---
+// /logs/stream     — real-time MQTT log/debug events (proxied by Vercel api.logs.stream)
+// /activity/stream — activity log + device-status + actuator-state (proxied by Vercel api.activity.stream)
 const SSE_PORT = process.env.PORT || process.env.SSE_PORT || 3001;
-const sseClients = new Set();
+const sseClients      = new Set(); // log stream clients
+const activityClients = new Set(); // activity stream clients
+
+// Staleness thresholds matching the old Vercel route
+const ESP32_TIMEOUT_MS = 60_000;
+const MEGA_TIMEOUT_MS  = 30_000;
+
+async function getDeviceStatus() {
+  const now = Date.now();
+  const [esp32Heartbeat, latestSensor] = await Promise.all([
+    db.collection('device_heartbeats').findOne({ source: 'esp32' }),
+    db.collection('sensor_readings').findOne({}, { sort: { timestamp: -1 }, projection: { timestamp: 1 } }),
+  ]);
+  const esp32LastSeen = esp32Heartbeat?.lastSeen ?? null;
+  const megaLastSeen  = latestSensor?.timestamp  ?? null;
+  return {
+    esp32: {
+      online:   esp32LastSeen ? (now - new Date(esp32LastSeen).getTime()) < ESP32_TIMEOUT_MS : false,
+      lastSeen: esp32LastSeen,
+    },
+    mega: {
+      online:   megaLastSeen ? (now - new Date(megaLastSeen).getTime()) < MEGA_TIMEOUT_MS : false,
+      lastSeen: megaLastSeen,
+    },
+  };
+}
+
+// Poll device-status every 2s and push to all activity clients
+setInterval(async () => {
+  if (activityClients.size === 0) return;
+  try {
+    const status = await getDeviceStatus();
+    for (const send of activityClients) send('device-status', status);
+  } catch {}
+}, 2000);
 
 const sseServer = http.createServer((req, res) => {
+  const corsHeaders = {
+    'Content-Type':      'text/event-stream',
+    'Cache-Control':     'no-cache',
+    'Connection':        'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+    'X-Accel-Buffering': 'no',
+  };
+
   if (req.method === 'GET' && req.url === '/logs/stream') {
-    res.writeHead(200, {
-      'Content-Type':      'text/event-stream',
-      'Cache-Control':     'no-cache',
-      'Connection':        'keep-alive',
-      'Access-Control-Allow-Origin': '*',
-    });
+    res.writeHead(200, corsHeaders);
 
     const send = (eventType, data) => {
-      try {
-        res.write(`event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`);
-      } catch {}
+      try { res.write(`event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`); } catch {}
     };
 
     send('ping', { ts: Date.now() });
     send('status', { connected: mqttClient?.connected ?? false });
 
     sseClients.add(send);
-    console.log(`[sse] Client connected (${sseClients.size} total)`);
+    console.log(`[sse/logs] Client connected (${sseClients.size} total)`);
 
     req.on('close', () => {
       sseClients.delete(send);
-      console.log(`[sse] Client disconnected (${sseClients.size} total)`);
+      console.log(`[sse/logs] Client disconnected (${sseClients.size} total)`);
+    });
+    return;
+  }
+
+  if (req.method === 'GET' && req.url === '/activity/stream') {
+    res.writeHead(200, corsHeaders);
+
+    const send = (eventType, data, id) => {
+      try {
+        let chunk = '';
+        if (id)   chunk += `id: ${id}\n`;
+        chunk += `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
+        res.write(chunk);
+      } catch {}
+    };
+
+    send('ping', { ts: Date.now() });
+
+    // Send initial device status and actuator state immediately on connect
+    Promise.all([
+      getDeviceStatus().then((s) => send('device-status', s)).catch(() => {}),
+      db.collection('actuator_states').find({}).toArray().then((docs) => {
+        const states = Object.fromEntries(
+          docs.map((d) => [d.actuatorId, { state: d.state, type: d.type, confirmed: d.confirmed }])
+        );
+        send('actuator-state', { states });
+      }).catch(() => {}),
+    ]);
+
+    activityClients.add(send);
+    console.log(`[sse/activity] Client connected (${activityClients.size} total)`);
+
+    req.on('close', () => {
+      activityClients.delete(send);
+      console.log(`[sse/activity] Client disconnected (${activityClients.size} total)`);
     });
     return;
   }
 
   if (req.method === 'GET' && req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, clients: sseClients.size }));
+    res.end(JSON.stringify({ ok: true, logClients: sseClients.size, activityClients: activityClients.size }));
     return;
   }
 
@@ -91,8 +161,9 @@ sseServer.listen(SSE_PORT, () => {
   console.log(`[sse] Listening on port ${SSE_PORT}`);
 });
 
-function broadcastLog(eventType, data) {
-  for (const send of sseClients) send(eventType, data);
+function broadcastLog(eventType, data, id) {
+  for (const send of sseClients)      send(eventType, data);
+  for (const send of activityClients) send(eventType, data, id);
 }
 
 // --- MQTT ---
@@ -290,11 +361,26 @@ mqttClient.on('message', async (topic, payload) => {
     }
     if (topic === 'rainwater/logs') {
       const entry = parseLogFrame(raw);
+      let insertedId;
       if (entry) {
-        await db.collection('activity_logs').insertOne(entry);
+        const result = await db.collection('activity_logs').insertOne(entry);
+        insertedId = result.insertedId?.toString();
         await dispatchPush(db, entry);
       }
-      broadcastLog('log', { raw, level: entry?.level ?? 'INFO', source: entry?.source ?? null, message: entry?.message ?? raw, ts: Date.now(), channel: 'logs' });
+      // Log stream clients get the raw channel payload; activity clients get the shaped entry with an id
+      for (const send of sseClients) send('log', { raw, level: entry?.level ?? 'INFO', source: entry?.source ?? null, message: entry?.message ?? raw, ts: Date.now(), channel: 'logs' });
+      if (entry) {
+        const shaped = {
+          id:        insertedId,
+          source:    entry.source,
+          level:     entry.level,
+          message:   entry.message,
+          type:      entry.type,
+          category:  entry.category,
+          timestamp: entry.timestamp,
+        };
+        for (const send of activityClients) send('log', shaped, insertedId);
+      }
     }
 
     if (topic === 'rainwater/debug') {
