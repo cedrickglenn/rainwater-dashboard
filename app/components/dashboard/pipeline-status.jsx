@@ -62,6 +62,8 @@ export function PipelineStatus({
   filterMode    = 0,
   backwashState = 0,
   lastHeartbeat = null, // ISO string or null
+  ffLitres      = null, // float, litres diverted this session (or null)
+  ffSession     = 0,   // 1 = at least one flush completed this session
   className,
 }) {
   const ff       = FF_STATES[ffState]       ?? FF_STATES[0];
@@ -99,9 +101,24 @@ export function PipelineStatus({
             iconClass="bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400"
             className="sm:px-4"
           >
-            <Badge variant={ff.variant} className="text-xs w-fit">
-              {ff.label}
-            </Badge>
+            <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+              <Badge variant={ff.variant} className="text-xs w-fit">
+                {ff.label}
+              </Badge>
+              {ffSession === 1 && (
+                <span
+                  className="text-[11px] font-medium px-1.5 py-0.5 rounded"
+                  style={{ backgroundColor: '#16A87620', color: '#16A876' }}
+                >
+                  Flushed this session
+                </span>
+              )}
+              {ffState === 2 && ffLitres != null && ffLitres > 0 && (
+                <span className="text-[11px] text-muted-foreground font-mono tabular-nums">
+                  {ffLitres.toFixed(1)} L diverted
+                </span>
+              )}
+            </div>
           </PillItem>
 
           {/* Filter Mode */}

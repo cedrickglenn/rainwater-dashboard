@@ -97,8 +97,10 @@ export const loader = async () => {
 
   const pipeline = {
     ffState:       latestDoc?.ff_state       ?? 0,
-    filterMode:    latestDoc?.filter_mode ?? 0,
+    filterMode:    latestDoc?.filter_mode    ?? 0,
     backwashState: latestDoc?.backwash_state ?? 0,
+    ffLitres:      latestDoc?.ff_litres      ?? null,
+    ffSession:     latestDoc?.ff_session     ?? 0,
   };
 
   return json({
@@ -161,6 +163,8 @@ export default function DashboardPage() {
         filterMode={pipeline.filterMode}
         backwashState={pipeline.backwashState}
         lastHeartbeat={lastHeartbeat}
+        ffLitres={pipeline.ffLitres}
+        ffSession={pipeline.ffSession}
       />
 
       {/* 2. Mode-aware pipeline diagram */}

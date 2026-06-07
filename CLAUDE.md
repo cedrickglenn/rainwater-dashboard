@@ -375,3 +375,13 @@ For multi-step tasks, state a brief plan:
 ```
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+### 5. Commit Title After Every Change
+
+**End every response that includes code changes with a suggested commit title.**
+
+- Start with a gerund: `Adding`, `Fixing`, `Updating`, `Improving`, `Including`
+- Plain language — no jargon, no ticket numbers, no colons
+- Under 60 characters
+- Cover the main thing that changed, not every layer
+- Examples: `Fixing calibration`, `Adding raw pulses to flow monitor`, `Fixing mobile UI issues and adding iOS prompt for PWA`
