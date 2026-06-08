@@ -165,10 +165,12 @@ export const action = async ({ request }) => {
       { $set: { key: 'first_flush', threshold, durationMs, volumeLitres, reentryWindowMs, updatedAt: new Date() } },
       { upsert: true }
     );
-    await mqttPublish('rainwater/commands', `C,FF_CONFIG,THRESHOLD,${threshold.toFixed(2)}`);
-    await mqttPublish('rainwater/commands', `C,FF_CONFIG,DURATION,${durationMs}`);
-    await mqttPublish('rainwater/commands', `C,FF_CONFIG,VOLUME,${volumeLitres.toFixed(1)}`);
-    await mqttPublish('rainwater/commands', `C,FF_CONFIG,REENTRY,${reentryWindowMs}`);
+    await mqttPublish('rainwater/commands', [
+      `C,FF_CONFIG,THRESHOLD,${threshold.toFixed(2)}`,
+      `C,FF_CONFIG,DURATION,${durationMs}`,
+      `C,FF_CONFIG,VOLUME,${volumeLitres.toFixed(1)}`,
+      `C,FF_CONFIG,REENTRY,${reentryWindowMs}`,
+    ]);
     return json({ ok: true, message: 'First flush configuration updated' });
   }
 
