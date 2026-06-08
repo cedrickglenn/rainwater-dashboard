@@ -8,6 +8,7 @@
  * Also shows hardware online/offline status derived from the last heartbeat timestamp.
  */
 
+import { useState, useEffect } from 'react';
 import { cn } from '~/lib/utils';
 import { Card, CardContent } from '~/components/ui/card';
 import { Badge } from '~/components/ui/badge';
@@ -70,8 +71,14 @@ export function PipelineStatus({
   const filter   = FILTER_MODES[filterMode] ?? FILTER_MODES[0];
   const backwash = BACKWASH_STATES[backwashState] ?? BACKWASH_STATES[0];
 
-  const isOnline = lastHeartbeat != null
-    && (Date.now() - new Date(lastHeartbeat).getTime()) < OFFLINE_THRESHOLD_MS;
+  // Derive online state client-side only to avoid SSR/CSR Date.now() mismatch.
+  const [isOnline, setIsOnline] = useState(false);
+  useEffect(() => {
+    setIsOnline(
+      lastHeartbeat != null &&
+        Date.now() - new Date(lastHeartbeat).getTime() < OFFLINE_THRESHOLD_MS
+    );
+  }, [lastHeartbeat]);
 
   return (
     <Card className={cn('', className)}>

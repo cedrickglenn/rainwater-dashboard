@@ -1057,16 +1057,24 @@ const SUMMARY_GROUPS = [
 ];
 
 function SummaryCell({ entry }) {
+  // ageStr is derived from Date.now() so it must be computed client-side only.
+  const [ageStr, setAgeStr] = useState('');
+  useEffect(() => {
+    if (!entry) return;
+    const ts = new Date(entry.timestamp);
+    const age = Date.now() - ts.getTime();
+    setAgeStr(
+      age < 60_000
+        ? 'just now'
+        : age < 3_600_000
+        ? `${Math.floor(age / 60_000)}m ago`
+        : ts.toLocaleDateString()
+    );
+  }, [entry]);
+
   if (!entry) {
     return <span className="text-muted-foreground/40">—</span>;
   }
-  const ts = new Date(entry.timestamp);
-  const age = Date.now() - ts.getTime();
-  const ageStr = age < 60_000
-    ? 'just now'
-    : age < 3_600_000
-    ? `${Math.floor(age / 60_000)}m ago`
-    : ts.toLocaleDateString();
 
   return (
     <span className="flex flex-col gap-0.5">
