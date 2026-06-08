@@ -130,7 +130,10 @@ export function Topbar({
 }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const notifRef = useRef(null);
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     if (!notifOpen) return;
@@ -264,10 +267,10 @@ export function Topbar({
               onClick={onThemeToggle}
               className={cn(touchButtonClasses, 'rounded-xl')}
               aria-label={
-                isDark ? 'Switch to light mode' : 'Switch to dark mode'
+                mounted && isDark ? 'Switch to light mode' : 'Switch to dark mode'
               }
             >
-              {isDark ? (
+              {mounted && isDark ? (
                 <Sun className="h-6 w-6" />
               ) : (
                 <Moon className="h-6 w-6" />
@@ -275,7 +278,7 @@ export function Topbar({
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            {isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            {mounted && isDark ? 'Switch to light mode' : 'Switch to dark mode'}
           </TooltipContent>
         </Tooltip>
 
