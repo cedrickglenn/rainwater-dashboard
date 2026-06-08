@@ -31,26 +31,19 @@ export function DashboardLayout({ alertCount = 0, notifications = [], user = nul
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   // Desktop sidebar collapsed state
   const [isCollapsed, setIsCollapsed] = useState(false);
-  // Theme state — initialise from the class the inline script already applied,
-  // so the icon matches on first render and avoids a hydration mismatch.
-  const [theme, setTheme] = useState(() =>
-    typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
-      ? 'dark'
-      : 'light'
-  );
+  // Always start with 'light' on SSR — the inline script in root.jsx already
+  // applied the correct class to <html> before React hydrates, so there's no
+  // flash. useEffect reads localStorage/matchMedia after hydration and corrects
+  // the state without causing a mismatch (effects don't run on the server).
+  const [theme, setTheme] = useState('light');
 
-  /**
-   * Initialize theme from localStorage or system preference
-   */
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme) {
       setTheme(savedTheme);
       document.documentElement.classList.toggle('dark', savedTheme === 'dark');
     } else {
-      const prefersDark = window.matchMedia(
-        '(prefers-color-scheme: dark)'
-      ).matches;
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       setTheme(prefersDark ? 'dark' : 'light');
       document.documentElement.classList.toggle('dark', prefersDark);
     }
