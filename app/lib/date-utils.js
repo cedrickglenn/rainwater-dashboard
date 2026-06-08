@@ -24,7 +24,9 @@ import {
  * @returns {string} - Formatted date string
  */
 export function formatDate(date, formatStr = 'MMM dd, yyyy') {
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
+  if (!date) return '—';
+  const dateObj = typeof date === 'string' ? parseISO(date) : new Date(date);
+  if (isNaN(dateObj.getTime())) return '—';
   return format(dateObj, formatStr);
 }
 
@@ -34,7 +36,9 @@ export function formatDate(date, formatStr = 'MMM dd, yyyy') {
  * @returns {string} - Formatted date and time string
  */
 export function formatDateTime(date) {
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
+  if (!date) return '—';
+  const dateObj = typeof date === 'string' ? parseISO(date) : new Date(date);
+  if (isNaN(dateObj.getTime())) return '—';
   return format(dateObj, 'MMM dd, yyyy HH:mm:ss');
 }
 
@@ -44,7 +48,9 @@ export function formatDateTime(date) {
  * @returns {string} - Formatted time string (HH:mm)
  */
 export function formatTime(date) {
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
+  if (!date) return '—';
+  const dateObj = typeof date === 'string' ? parseISO(date) : new Date(date);
+  if (isNaN(dateObj.getTime())) return '—';
   return format(dateObj, 'HH:mm');
 }
 
@@ -54,7 +60,9 @@ export function formatTime(date) {
  * @returns {string} - Relative time string
  */
 export function formatRelativeTime(date) {
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
+  if (!date) return '—';
+  const dateObj = typeof date === 'string' ? parseISO(date) : new Date(date);
+  if (isNaN(dateObj.getTime())) return '—';
   return formatDistanceToNow(dateObj, { addSuffix: true });
 }
 
@@ -64,7 +72,9 @@ export function formatRelativeTime(date) {
  * @returns {string} - Human readable label (Today, Yesterday, or formatted date)
  */
 export function getDateLabel(date) {
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
+  if (!date) return '—';
+  const dateObj = typeof date === 'string' ? parseISO(date) : new Date(date);
+  if (isNaN(dateObj.getTime())) return '—';
 
   if (isToday(dateObj)) {
     return 'Today';
@@ -148,7 +158,9 @@ export function getDateRange(range) {
  * @returns {string} - Formatted axis label
  */
 export function formatChartLabel(date, type = 'hour') {
-  const dateObj = typeof date === 'string' ? parseISO(date) : date;
+  if (!date) return '—';
+  const dateObj = typeof date === 'string' ? parseISO(date) : new Date(date);
+  if (isNaN(dateObj.getTime())) return '—';
 
   switch (type) {
     case 'hour':
