@@ -10,6 +10,7 @@
  * - Close button: prominent 48px touch target
  */
 
+import { useState, useEffect } from 'react';
 import { NavLink } from '@remix-run/react';
 import { cn } from '~/lib/utils';
 import { Button } from '~/components/ui/button';
@@ -145,13 +146,16 @@ function NavItem({ item, isCollapsed, onClick }) {
  * DeviceStatusDot — a single device row in the System Status panel.
  */
 function DeviceStatusDot({ label, online, lastSeen, loading }) {
+  const [relativeTime, setRelativeTime] = useState('');
+  useEffect(() => {
+    setRelativeTime(lastSeen ? formatRelativeTime(lastSeen) : '');
+  }, [lastSeen]);
+
   const statusText = loading
     ? 'Checking…'
     : online
       ? 'Online'
-      : lastSeen
-        ? formatRelativeTime(lastSeen)
-        : 'Offline';
+      : relativeTime || 'Offline';
 
   return (
     <div className="flex items-start gap-2">
@@ -191,6 +195,40 @@ function DeviceStatusDot({ label, online, lastSeen, loading }) {
         </span>
       </div>
     </div>
+  );
+}
+
+function CollapsedStatusDot({ label, status }) {
+  const [relativeTime, setRelativeTime] = useState('');
+  useEffect(() => {
+    setRelativeTime(status.lastSeen ? formatRelativeTime(status.lastSeen) : '');
+  }, [status.lastSeen]);
+
+  const dotColor = status.loading
+    ? 'bg-muted-foreground/40'
+    : status.online
+      ? 'bg-green-500'
+      : 'bg-red-500';
+  const statusText = status.loading
+    ? 'Checking…'
+    : status.online
+      ? 'Online'
+      : relativeTime || 'Offline';
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="relative flex h-2.5 w-2.5 cursor-default">
+          {status.online && !status.loading && (
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+          )}
+          <span className={cn('relative inline-flex h-2.5 w-2.5 rounded-full', dotColor)} />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="right">
+        {label}: {statusText}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -326,35 +364,9 @@ export function Sidebar({
               {[
                 { key: 'esp32', label: 'ESP32', status: deviceStatus.esp32 },
                 { key: 'mega', label: 'Arduino MEGA', status: deviceStatus.mega },
-              ].map(({ key, label, status }) => {
-                const dotColor = status.loading
-                  ? 'bg-muted-foreground/40'
-                  : status.online
-                    ? 'bg-green-500'
-                    : 'bg-red-500';
-                const statusText = status.loading
-                  ? 'Checking…'
-                  : status.online
-                    ? 'Online'
-                    : status.lastSeen
-                      ? formatRelativeTime(status.lastSeen)
-                      : 'Offline';
-                return (
-                  <Tooltip key={key}>
-                    <TooltipTrigger asChild>
-                      <span className="relative flex h-2.5 w-2.5 cursor-default">
-                        {status.online && !status.loading && (
-                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-                        )}
-                        <span className={cn('relative inline-flex h-2.5 w-2.5 rounded-full', dotColor)} />
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">
-                      {label}: {statusText}
-                    </TooltipContent>
-                  </Tooltip>
-                );
-              })}
+              ].map(({ key, label, status }) => (
+                <CollapsedStatusDot key={key} label={label} status={status} />
+              ))}
             </div>
           )}
 

@@ -6,7 +6,7 @@
 
 import { json } from '@remix-run/node';
 import { useLoaderData, useNavigate, useRevalidator } from '@remix-run/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { cn } from '~/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 import { Badge } from '~/components/ui/badge';
@@ -297,8 +297,13 @@ export default function SensorsPage() {
     useLoaderData();
 
   const [timeRange, setTimeRange] = useState(range);
+  const [lastUpdatedText, setLastUpdatedText] = useState('');
   const navigate    = useNavigate();
   const revalidator = useRevalidator();
+
+  useEffect(() => {
+    setLastUpdatedText(lastUpdated ? formatRelativeTime(lastUpdated) : '');
+  }, [lastUpdated]);
 
   const handleRangeChange = (value) => {
     setTimeRange(value);
@@ -363,8 +368,8 @@ export default function SensorsPage() {
           <span className="relative inline-flex h-2 w-2 rounded-full bg-[color:var(--water-safe)]" />
         </span>
         <span>
-          {lastUpdated
-            ? `Live data · Last updated ${formatRelativeTime(lastUpdated)}`
+          {lastUpdatedText
+            ? `Live data · Last updated ${lastUpdatedText}`
             : 'Awaiting first sensor reading…'}
         </span>
       </div>
