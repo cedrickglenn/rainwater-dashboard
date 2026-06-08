@@ -145,7 +145,7 @@ export function ActivityLog({
         <ScrollArea className="h-[250px] grow lg:h-[376px]">
           <div className="space-y-2 pr-3">
             {logs.length > 0 ? (
-              logs.map((log) => <ActivityLogItem key={log.id} log={log} />)
+              logs.map((log, i) => <ActivityLogItem key={log.id ?? i} log={log} />)
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
                 <Activity className="mb-2 h-8 w-8 opacity-50" />
