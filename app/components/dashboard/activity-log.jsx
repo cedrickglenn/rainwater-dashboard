@@ -88,7 +88,7 @@ function ActivityLogItem({ log }) {
 
         {/* Meta row: timestamp + badge */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-muted-foreground" suppressHydrationWarning>
             {formatLogDate(log.timestamp)}
           </span>
           <Badge

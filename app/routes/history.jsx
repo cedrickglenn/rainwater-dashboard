@@ -199,7 +199,7 @@ function LogEntry({ log, isExpanded, onToggle }) {
               <Calendar className="h-3 w-3" />
               {formatDate(log.timestamp)}
             </span>
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1" suppressHydrationWarning>
               <Clock className="h-3 w-3" />
               {formatLogDate(log.timestamp)}
             </span>

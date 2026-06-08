@@ -218,7 +218,7 @@ function UserManagement() {
                     <span className="ml-2 text-xs text-muted-foreground">(you)</span>
                   )}
                 </p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground" suppressHydrationWarning>
                   {u.lastLoginAt ? `Last login: ${new Date(u.lastLoginAt).toLocaleDateString()}` : 'Never logged in'}
                 </p>
               </div>
