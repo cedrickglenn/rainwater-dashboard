@@ -1,5 +1,5 @@
 import { json } from '@remix-run/node';
-import { Form, Link, useActionData, useNavigation } from '@remix-run/react';
+import { Form, Link, useActionData, useNavigation, useSearchParams } from '@remix-run/react';
 import { Droplets, Lock, User, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 import { RainSenseMark } from '~/components/layout/sidebar';
@@ -41,12 +41,8 @@ export default function LoginPage() {
   const navigation = useNavigation();
   const isSubmitting = navigation.state === 'submitting';
   const [showPassword, setShowPassword] = useState(false);
-
-  // Read redirectTo from URL
-  const redirectTo =
-    typeof window !== 'undefined'
-      ? new URL(window.location.href).searchParams.get('redirectTo') || '/'
-      : '/';
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get('redirectTo') || '/';
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">

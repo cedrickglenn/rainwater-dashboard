@@ -31,8 +31,13 @@ export function DashboardLayout({ alertCount = 0, notifications = [], user = nul
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   // Desktop sidebar collapsed state
   const [isCollapsed, setIsCollapsed] = useState(false);
-  // Theme state
-  const [theme, setTheme] = useState('light');
+  // Theme state — initialise from the class the inline script already applied,
+  // so the icon matches on first render and avoids a hydration mismatch.
+  const [theme, setTheme] = useState(() =>
+    typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+      ? 'dark'
+      : 'light'
+  );
 
   /**
    * Initialize theme from localStorage or system preference
