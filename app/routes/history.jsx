@@ -467,9 +467,9 @@ export default function HistoryPage() {
           {/* Log entries */}
           <div className="space-y-2">
             {paginated.length > 0 ? (
-              paginated.map((log) => (
+              paginated.map((log, i) => (
                 <LogEntry
-                  key={log.id}
+                  key={log.id ?? i}
                   log={log}
                   isExpanded={expandedLog === log.id}
                   onToggle={() => setExpandedLog((prev) => prev === log.id ? null : log.id)}
