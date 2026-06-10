@@ -480,8 +480,8 @@ function TurbidityTab() {
       <LiveReading
         sensorKey={`TURB_${container}`}
         label="Turbidity"
-        unit="NTU"
-        decimals={1}
+        unit="V"
+        decimals={3}
         rawKey={`RAW_TURB_V_${container}`}
         rawUnit="mV"
         rawDecimals={0}
@@ -491,11 +491,11 @@ function TurbidityTab() {
       <Separator />
 
       <div className="space-y-3">
-        <p className="text-sm font-medium">Step 1 — Zero Point (0 NTU)</p>
+        <p className="text-sm font-medium">Step 1 — Zero Point (clean water baseline)</p>
         <div className="space-y-2 pl-1">
           <Step number="1" text="Clean the sensor and container." />
-          <Step number="2" text="Fill with distilled water — this is your 0 NTU reference." />
-          <Step number="3" text="Submerge the sensor, wait for a stable reading, then press Set Zero." />
+          <Step number="2" text="Fill with distilled (or very clean) water — this is your clean-water reference." />
+          <Step number="3" text="Submerge the sensor, wait for a stable reading (~4.1 V adjusted), then press Set Zero." />
         </div>
         <fetcher.Form method="post" action={CAL_ACTION}>
           <input type="hidden" name="command" value="CAL_TURB" />
@@ -503,7 +503,7 @@ function TurbidityTab() {
           <input type="hidden" name="point" value="ZERO" />
           <Button type="submit" variant="outline" disabled={submitting} className="gap-2">
             <FlaskConical className="h-4 w-4" />
-            {submitting ? 'Sending…' : `Set Zero (0 NTU) — ${container}`}
+            {submitting ? 'Sending…' : `Set Zero (clean water) — ${container}`}
           </Button>
         </fetcher.Form>
       </div>

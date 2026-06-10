@@ -413,7 +413,7 @@ export default function SensorsPage() {
             title="Turbidity — C2 vs C5 vs C6"
             data={historical}
             metric="turb"
-            unit="NTU"
+            unit="V"
             height={220}
           />
           <ContainerLineChart

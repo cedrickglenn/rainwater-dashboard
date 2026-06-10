@@ -18,14 +18,15 @@ export const SENSOR_THRESHOLDS = {
     safeRange: '6.5 - 8.5',
   },
 
-  // Turbidity: Should be below 5 NTU, ideally below 1 NTU
+  // Turbidity: adjusted voltage — clean water normalizes to ~4.1V after ZERO calibration.
+  // Higher voltage = cleaner. Threshold: >= 3.8V (4.1V anchor minus 0.3V sensor tolerance).
   turbidity: {
-    min: 0,
-    max: 5,
-    unit: 'NTU',
+    min: 3.8,
+    max: 4.1,
+    unit: 'V',
     name: 'Turbidity',
-    description: 'Measure of water clarity',
-    safeRange: '< 5 NTU',
+    description: 'Adjusted voltage — higher is cleaner (≥ 3.8 V after zero-point calibration)',
+    safeRange: '≥ 3.8 V',
   },
 
   // TDS: Total Dissolved Solids, should be below 500 mg/L
@@ -120,8 +121,16 @@ export function getSensorStatus(sensorType, value) {
     return WATER_STATUS.UNSAFE;
   }
 
-  // For turbidity and TDS (only max matters)
-  if (sensorType === 'turbidity' || sensorType === 'tds') {
+  // Turbidity uses adjusted voltage — HIGHER is cleaner (opposite of NTU).
+  // threshold.max = 4.1V (clean anchor), threshold.min = 3.8V (fail floor).
+  if (sensorType === 'turbidity') {
+    if (value >= threshold.max) return WATER_STATUS.SAFE;         // >= 4.1V: fully clean
+    if (value >= threshold.min) return WATER_STATUS.WARNING;      // 3.8–4.1V: marginal
+    return WATER_STATUS.UNSAFE;                                    // < 3.8V: turbid
+  }
+
+  // For TDS (only max matters — higher is worse)
+  if (sensorType === 'tds') {
     if (value <= threshold.max * 0.8) {
       return WATER_STATUS.SAFE;
     }
@@ -206,6 +215,12 @@ export function getSafeRangePercentage(sensorType, value) {
     return Math.max(0, Math.min(100, 100 - (deviation / (range / 2)) * 100));
   }
 
-  // For max-only thresholds (turbidity, TDS)
+  // Turbidity: higher voltage = cleaner — map min..max range to 0..100%.
+  if (sensorType === 'turbidity') {
+    const range = threshold.max - threshold.min;
+    return Math.max(0, Math.min(100, ((value - threshold.min) / range) * 100));
+  }
+
+  // For max-only thresholds (TDS)
   return Math.max(0, Math.min(100, (value / threshold.max) * 100));
 }

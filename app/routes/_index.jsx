@@ -188,7 +188,7 @@ export default function DashboardPage() {
             title="Turbidity · Raw vs Output"
             data={historical}
             metric="turb"
-            unit="NTU"
+            unit="V"
             mode="beforeAfter"
             height={220}
           />
