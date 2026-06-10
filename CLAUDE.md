@@ -376,7 +376,15 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
-### 5. Commit Title After Every Change
+### 5. Keep Design Docs in Sync
+
+**When any logic in the system is implemented or changed, check `docs/` for a design document covering that subsystem and suggest updating it.**
+
+- At the start of a session, if `docs/` contains a markdown file for the area being changed (e.g., `first-flush-diverter-design.md` for first flush work), flag it and offer to update it after the code changes are done.
+- Do not update the docs silently — surface it as a suggestion so the user can decide when to do it.
+- The docs in `docs/` are thesis-level documentation, so changes must be accurate and reflect the actual shipped behaviour, not the planned one.
+
+### 6. Commit Title After Every Change
 
 **End every response that includes code changes with a suggested commit title.**
 

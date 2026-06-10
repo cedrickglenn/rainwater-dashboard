@@ -81,6 +81,8 @@ export const loader = async ({ request }) => {
     durationMin: ffConfigDoc?.durationMs != null ? ffConfigDoc.durationMs / 60000 : 5,
     volumeLitres: ffConfigDoc?.volumeLitres ?? 20,
     reentryWindowMs: ffConfigDoc?.reentryWindowMs ?? 7200000,
+    idlePulseMs: ffConfigDoc?.idlePulseMs ?? 8000,
+    flowTimeoutMs: ffConfigDoc?.flowTimeoutMs ?? 30000,
   };
 
   const now = Date.now();
@@ -157,12 +159,14 @@ export const action = async ({ request }) => {
     const durationMs     = Math.round(durationMin * 60000);
     const volumeLitres   = parseFloat(formData.get('volumeLitres'));
     const reentryWindowMs = parseInt(formData.get('reentryWindowMs'));
+    const idlePulseMs    = parseInt(formData.get('idlePulseMs'));
+    const flowTimeoutMs  = parseInt(formData.get('flowTimeoutMs'));
     const { getDb } = await import('~/lib/db.server');
     const { mqttPublish } = await import('~/lib/mqtt.server');
     const db = await getDb();
     await db.collection('system_config').updateOne(
       { key: 'first_flush' },
-      { $set: { key: 'first_flush', threshold, durationMs, volumeLitres, reentryWindowMs, updatedAt: new Date() } },
+      { $set: { key: 'first_flush', threshold, durationMs, volumeLitres, reentryWindowMs, idlePulseMs, flowTimeoutMs, updatedAt: new Date() } },
       { upsert: true }
     );
     await mqttPublish('rainwater/commands', [
@@ -170,6 +174,8 @@ export const action = async ({ request }) => {
       `C,FF_CONFIG,DURATION,${durationMs}`,
       `C,FF_CONFIG,VOLUME,${volumeLitres.toFixed(1)}`,
       `C,FF_CONFIG,REENTRY,${reentryWindowMs}`,
+      `C,FF_CONFIG,IDLE_PULSE,${idlePulseMs}`,
+      `C,FF_CONFIG,FLOW_TIMEOUT,${flowTimeoutMs}`,
     ]);
     return json({ ok: true, message: 'First flush configuration updated' });
   }
@@ -508,6 +514,8 @@ export default function SettingsPage() {
   const [ffDurationMin, setFfDurationMin]     = useState(ffConfig.durationMin);
   const [ffVolumeLitres, setFfVolumeLitres]   = useState(ffConfig.volumeLitres);
   const [ffReentryMs, setFfReentryMs]         = useState(String(ffConfig.reentryWindowMs));
+  const [ffIdlePulseS, setFfIdlePulseS]       = useState(Math.round(ffConfig.idlePulseMs / 1000));
+  const [ffFlowTimeoutS, setFfFlowTimeoutS]   = useState(Math.round(ffConfig.flowTimeoutMs / 1000));
 
   // Keep `?tab=...` in sync with the active tab without adding history entries.
   useEffect(() => {
@@ -670,7 +678,7 @@ export default function SettingsPage() {
               <div className="space-y-0.5">
                 <Label className="text-sm font-medium">Skip Re-flush If Rain Returns Within</Label>
                 <p className="text-xs text-muted-foreground">
-                  If rain resumes before this window expires, skip the flush — the roof is already clean.
+                  If rain returns after a completed or paused flush within this window, the roof is treated as still clean and diversion is skipped.
                 </p>
               </div>
               <Select value={ffReentryMs} onValueChange={setFfReentryMs}>
@@ -685,6 +693,66 @@ export default function SettingsPage() {
                 </SelectContent>
               </Select>
               <input type="hidden" name="reentryWindowMs" value={ffReentryMs} />
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">V8 Rain-Check Pulse Duration</Label>
+                  <p className="text-xs text-muted-foreground">
+                    How long V8 stays open each minute to sample for rainfall. Increase if flow isn&apos;t detected during slow rain.
+                  </p>
+                </div>
+                <span className="font-mono text-sm font-semibold tabular-nums">
+                  {ffIdlePulseS} s
+                </span>
+              </div>
+              <input
+                type="range"
+                min={5}
+                max={30}
+                step={1}
+                value={ffIdlePulseS}
+                onChange={(e) => setFfIdlePulseS(parseInt(e.target.value))}
+                className="w-full accent-primary"
+              />
+              <input type="hidden" name="idlePulseMs" value={ffIdlePulseS * 1000} />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>5 s (quick check)</span>
+                <span>30 s (slow rain)</span>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Flow Pause Tolerance</Label>
+                  <p className="text-xs text-muted-foreground">
+                    How long flow can stop during diversion before the system pauses the flush. Rain returning within the re-entry window will resume where it left off.
+                  </p>
+                </div>
+                <span className="font-mono text-sm font-semibold tabular-nums">
+                  {ffFlowTimeoutS} s
+                </span>
+              </div>
+              <input
+                type="range"
+                min={15}
+                max={300}
+                step={15}
+                value={ffFlowTimeoutS}
+                onChange={(e) => setFfFlowTimeoutS(parseInt(e.target.value))}
+                className="w-full accent-primary"
+              />
+              <input type="hidden" name="flowTimeoutMs" value={ffFlowTimeoutS * 1000} />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>15 s (strict)</span>
+                <span>300 s (tolerant)</span>
+              </div>
             </div>
 
             {ffFetcher.data?.ok && (
@@ -711,6 +779,8 @@ export default function SettingsPage() {
                     durationMin: String(ffDurationMin),
                     volumeLitres: String(ffVolumeLitres),
                     reentryWindowMs: ffReentryMs,
+                    idlePulseMs: String(ffIdlePulseS * 1000),
+                    flowTimeoutMs: String(ffFlowTimeoutS * 1000),
                   },
                   { method: 'post' }
                 )
