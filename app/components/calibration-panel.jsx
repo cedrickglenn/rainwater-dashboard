@@ -96,11 +96,23 @@ function ackPrefixFor(cmdLine) {
   return 'A,' + cmdLine.slice(2);
 }
 
+// Additional error ACK prefixes the poller should also match for TURB ZERO.
+// The firmware sends A,CAL_ERROR,TURB,LOW_VOLTAGE when the raw voltage < 3V.
+function errorAckPrefixFor(cmdLine) {
+  if (!cmdLine) return null;
+  if (cmdLine.startsWith('C,CAL_TURB,') && cmdLine.includes(',ZERO')) {
+    const parts = cmdLine.split(',');
+    return `A,CAL_ERROR,TURB,LOW_VOLTAGE`;
+  }
+  return null;
+}
+
 function useAckPoller(fetcherData) {
   const [ackState, setAckState] = useState(null);
   const timerRef = useRef(null);
   const startRef = useRef(null);
   const prefixRef = useRef(null);
+  const errorPrefixRef = useRef(null);
 
   useEffect(() => {
     if (!fetcherData?.ok || !fetcherData?.queued) return;
@@ -109,6 +121,7 @@ function useAckPoller(fetcherData) {
     if (!prefix) return;
 
     prefixRef.current = prefix;
+    errorPrefixRef.current = errorAckPrefixFor(fetcherData.queued);
     startRef.current = Date.now();
     setAckState('waiting');
     clearInterval(timerRef.current);
@@ -128,14 +141,17 @@ function useAckPoller(fetcherData) {
         const submittedAt = startRef.current;
         const match = acks.find(
           a => a.raw &&
-               a.raw.startsWith(prefixRef.current) &&
+               (a.raw.startsWith(prefixRef.current) ||
+                (errorPrefixRef.current && a.raw.startsWith(errorPrefixRef.current))) &&
                new Date(a.timestamp).getTime() >= submittedAt
         );
         if (!match) return;
 
         clearInterval(timerRef.current);
 
-        if (match.status === 'OK') {
+        if (match.raw?.startsWith('A,CAL_ERROR,TURB,LOW_VOLTAGE')) {
+          setAckState({ ok: false, message: 'Raw voltage < 3 V — sensor may be in air, turbid water, or disconnected. Clean the sensor and retry in clear water.' });
+        } else if (match.status === 'OK') {
           const parts = [match.command, match.container, match.point]
             .filter(Boolean).join(' · ');
           const valuePart = match.value != null ? ` → ${match.value}` : '';
@@ -574,14 +590,13 @@ function TurbFaultFloorSection() {
 function TurbidityTab() {
   const fetcher = useFetcher();
   const [container, setContainer] = useState('C2');
-  const [spanNTU, setSpanNTU] = useState('10');
   const submitting = fetcher.state === 'submitting';
 
   return (
     <CalSection
       icon={Eye}
       title="Turbidity Sensor Calibration"
-      description="2-point calibration using distilled water (0 NTU) and a known turbidity standard."
+      description="Zero-point calibration using clean water. The pipeline gates on adjusted voltage — no turbidity standard needed."
     >
       <ContainerSelect
         containers={TURB_CONTAINERS}
@@ -590,23 +605,23 @@ function TurbidityTab() {
       />
       <LiveReading
         sensorKey={`TURB_${container}`}
-        label="Turbidity"
+        label="Adjusted V"
         unit="V"
         decimals={3}
         rawKey={`RAW_TURB_V_${container}`}
-        rawUnit="mV"
-        rawDecimals={0}
-        rawTransform={(v) => v * 1000}
+        rawUnit="V"
+        rawDecimals={3}
       />
 
       <Separator />
 
       <div className="space-y-3">
-        <p className="text-sm font-medium">Step 1 — Zero Point (clean water baseline)</p>
+        <p className="text-sm font-medium">Zero Point (clean water baseline)</p>
         <div className="space-y-2 pl-1">
           <Step number="1" text="Clean the sensor and container." />
-          <Step number="2" text="Fill with distilled (or very clean) water — this is your clean-water reference." />
-          <Step number="3" text="Submerge the sensor, wait for a stable reading (~4.1 V adjusted), then press Set Zero." />
+          <Step number="2" text="Fill with distilled (or very clean) water." />
+          <Step number="3" text="Submerge the sensor and wait for a stable raw voltage above 3 V (watch the 'raw' field above). The firmware rejects readings below 3 V — if connected and submerged in clean water, the raw voltage is typically 3.5–4.5 V." />
+          <Step number="4" text="Press Set Zero. The Mega stores this as zeroV and normalises the adjusted voltage to ~4.1 V in clean water. The pipeline passes C5 water when adjusted voltage ≥ 3.8 V." />
         </div>
         <fetcher.Form method="post" action={CAL_ACTION}>
           <input type="hidden" name="command" value="CAL_TURB" />
@@ -615,41 +630,6 @@ function TurbidityTab() {
           <Button type="submit" variant="outline" disabled={submitting} className="gap-2">
             <FlaskConical className="h-4 w-4" />
             {submitting ? 'Sending…' : `Set Zero (clean water) — ${container}`}
-          </Button>
-        </fetcher.Form>
-      </div>
-
-      <Separator />
-
-      <div className="space-y-3">
-        <p className="text-sm font-medium">Step 2 — Span Point (known NTU)</p>
-        <div className="space-y-2 pl-1">
-          <Step
-            number="1"
-            text="Prepare a turbidity standard (e.g., diluted formazin or a powdered-milk solution with a known NTU value)."
-          />
-          <Step number="2" text="Submerge the sensor, wait for a stable reading." />
-          <Step number="3" text="Enter the NTU value of your standard below, then press Set Span." />
-        </div>
-        <div className="flex items-center gap-3">
-          <Label className="flex-shrink-0">Standard NTU value</Label>
-          <input
-            type="number"
-            step="0.1"
-            min="1"
-            value={spanNTU}
-            onChange={(e) => setSpanNTU(e.target.value)}
-            className="w-24 rounded-md border bg-background px-3 py-1.5 text-sm"
-          />
-        </div>
-        <fetcher.Form method="post" action={CAL_ACTION}>
-          <input type="hidden" name="command" value="CAL_TURB" />
-          <input type="hidden" name="container" value={container} />
-          <input type="hidden" name="point" value="SPAN" />
-          <input type="hidden" name="value" value={spanNTU} />
-          <Button type="submit" variant="outline" disabled={submitting} className="gap-2">
-            <FlaskConical className="h-4 w-4" />
-            {submitting ? 'Sending…' : `Set Span (${spanNTU} NTU) — ${container}`}
           </Button>
         </fetcher.Form>
       </div>
@@ -1054,7 +1034,7 @@ function LiveCalibrationState() {
                     <tr className="border-b bg-muted/30">
                       <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Container</th>
                       <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Zero (V)</th>
-                      <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Slope (NTU/V)</th>
+                      <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Slope (unused)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1148,8 +1128,7 @@ const SUMMARY_GROUPS = [
     label: 'Turbidity',
     icon: Eye,
     rows: [
-      { command: 'CAL_TURB', containers: ['C2','C5','C6'], point: 'ZERO', desc: 'Zero (0 NTU)', unit: 'V'   },
-      { command: 'CAL_TURB', containers: ['C2','C5','C6'], point: 'SPAN', desc: 'Span',         unit: 'NTU' },
+      { command: 'CAL_TURB', containers: ['C2','C5','C6'], point: 'ZERO', desc: 'Zero (V)', unit: 'V' },
     ],
   },
   {
