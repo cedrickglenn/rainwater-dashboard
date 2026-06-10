@@ -345,33 +345,16 @@ function LiveReading({
   );
 }
 
-function SensorResetButton({ sensor, containers }) {
+function SensorResetButton({ sensor, container }) {
   const fetcher = useFetcher();
-  const isGlobal = !containers || containers.length === 0;
-  const [container, setContainer] = useState(isGlobal ? null : containers[0]);
+  const isGlobal = !container;
   const submitting = fetcher.state === 'submitting';
 
   return (
     <div className="mt-4 rounded-lg border border-[color:var(--water-unsafe)]/20 p-3 space-y-2">
       <p className="text-xs font-medium text-[color:var(--water-unsafe)]">
-        Reset {sensor} Calibration
+        Reset {sensor} Calibration{!isGlobal ? ` — ${container}` : ''}
       </p>
-      {!isGlobal && (
-        <div className="flex items-center gap-2">
-          <Label className="text-xs w-20 shrink-0">Container</Label>
-          <Select value={container} onValueChange={setContainer}>
-            <SelectTrigger className="h-7 w-40 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">All containers</SelectItem>
-              {containers.map((c) => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
       <fetcher.Form method="post" action={CAL_ACTION}>
         <input type="hidden" name="command" value="CAL_RESET" />
         <input type="hidden" name="container" value={isGlobal ? 'FLOW' : sensor} />
@@ -470,41 +453,39 @@ function PHTab() {
         </fetcher.Form>
       </div>
 
-      <SensorResetButton sensor="PH" containers={PH_CONTAINERS} />
+      <SensorResetButton sensor="PH" container={container} />
       <AckStatus fetcherData={fetcher.data} submitting={submitting} />
     </CalSection>
   );
 }
 
-const FAULT_FLOOR_CONTAINERS = ['C2', 'C5', 'C6'];
-const ACK_FAULT_POLL_MS      = 1500;
+const ACK_FAULT_POLL_MS = 1500;
 const ACK_FAULT_TIMEOUT_MS   = 5000;
 
-function TurbFaultFloorSection() {
-  const [floors, setFloors] = useState({ C2: '0.500', C5: '0.500', C6: '0.500' });
+function TurbFaultFloorSection({ container }) {
+  const [floor, setFloor] = useState('0.500');
   const [ackState, setAckState] = useState(null); // null | 'waiting' | { ok, message }
-  const timerRef   = useRef(null);
-  const startRef   = useRef(null);
+  const timerRef = useRef(null);
+  const startRef = useRef(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
+    const val = parseFloat(floor);
+    if (isNaN(val)) return;
+
     setSubmitting(true);
     setAckState(null);
 
-    for (const container of FAULT_FLOOR_CONTAINERS) {
-      const val = parseFloat(floors[container]);
-      if (isNaN(val)) continue;
-      await fetch(CAL_ACTION, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          command: 'CAL_TURB_FAULT',
-          container,
-          value: val.toFixed(3),
-        }),
-      });
-    }
+    await fetch(CAL_ACTION, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        command: 'CAL_TURB_FAULT',
+        container,
+        value: val.toFixed(3),
+      }),
+    });
 
     setSubmitting(false);
     startRef.current = Date.now();
@@ -521,12 +502,9 @@ function TurbFaultFloorSection() {
         const res = await fetch('/api/cal-turb-fault-ack');
         if (!res.ok) return;
         const { allOk, missing } = await res.json();
-        if (allOk) {
+        if (allOk || missing.length === 0) {
           clearInterval(timerRef.current);
-          setAckState({ ok: true, message: 'Fault floors applied & saved to EEPROM (C2, C5, C6).' });
-        } else if (missing.length === 0) {
-          clearInterval(timerRef.current);
-          setAckState({ ok: true, message: 'Fault floors applied & saved to EEPROM.' });
+          setAckState({ ok: true, message: `Fault floor for ${container} applied & saved to EEPROM.` });
         }
       } catch { /* network blip */ }
     }, ACK_FAULT_POLL_MS);
@@ -534,33 +512,26 @@ function TurbFaultFloorSection() {
 
   return (
     <div className="mt-4 space-y-3 rounded-lg border p-4">
-      <p className="text-sm font-medium">Sensor Fault Floor</p>
+      <p className="text-sm font-medium">Sensor Fault Floor — {container}</p>
       <p className="text-xs text-muted-foreground">
         Raw voltage below which the turbidity sensor is considered faulty (disconnected or in air)
         rather than measuring turbid water. The pipeline will log a fault and hold — it will not
         activate the recycle loop. Default 0.5 V. Valid range: 0.0 – 2.0 V.
       </p>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="grid gap-2 sm:grid-cols-3">
-          {FAULT_FLOOR_CONTAINERS.map((c) => (
-            <div key={c} className="flex items-center gap-2">
-              <Label className="w-8 flex-shrink-0 text-xs">{c}</Label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                max="2"
-                value={floors[c]}
-                onChange={(e) => setFloors((prev) => ({ ...prev, [c]: e.target.value }))}
-                className="w-24 rounded-md border bg-background px-3 py-1.5 text-sm font-mono"
-              />
-              <span className="text-xs text-muted-foreground">V</span>
-            </div>
-          ))}
-        </div>
+      <form onSubmit={handleSubmit} className="flex items-center gap-3">
+        <input
+          type="number"
+          step="0.01"
+          min="0"
+          max="2"
+          value={floor}
+          onChange={(e) => setFloor(e.target.value)}
+          className="w-24 rounded-md border bg-background px-3 py-1.5 text-sm font-mono"
+        />
+        <span className="text-xs text-muted-foreground">V</span>
         <Button type="submit" variant="outline" size="sm" disabled={submitting} className="gap-2">
           {submitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <DatabaseZap className="h-3 w-3" />}
-          {submitting ? 'Sending…' : 'Save Fault Floors'}
+          {submitting ? 'Sending…' : 'Save Fault Floor'}
         </Button>
       </form>
 
@@ -634,9 +605,9 @@ function TurbidityTab() {
         </fetcher.Form>
       </div>
 
-      <SensorResetButton sensor="TURB" containers={TURB_CONTAINERS} />
+      <SensorResetButton sensor="TURB" container={container} />
       <AckStatus fetcherData={fetcher.data} submitting={submitting} />
-      <TurbFaultFloorSection />
+      <TurbFaultFloorSection container={container} />
     </CalSection>
   );
 }
@@ -727,7 +698,7 @@ function LevelTab() {
         </div>
       </div>
 
-      <SensorResetButton sensor="LVL" containers={LEVEL_CONTAINERS} />
+      <SensorResetButton sensor="LVL" container={container} />
       <AckStatus fetcherData={fetcher.data} submitting={submitting} />
     </CalSection>
   );
@@ -792,7 +763,7 @@ function TemperatureTab() {
         </fetcher.Form>
       </div>
 
-      <SensorResetButton sensor="TEMP" containers={TEMP_CONTAINERS} />
+      <SensorResetButton sensor="TEMP" container={container} />
       <AckStatus fetcherData={fetcher.data} submitting={submitting} />
     </CalSection>
   );
@@ -847,7 +818,7 @@ function FlowTab() {
         </fetcher.Form>
       </div>
 
-      <SensorResetButton sensor="FLOW" containers={[]} />
+      <SensorResetButton sensor="FLOW" container={null} />
       <AckStatus fetcherData={fetcher.data} submitting={submitting} />
     </CalSection>
   );
