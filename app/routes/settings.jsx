@@ -517,6 +517,34 @@ export default function SettingsPage() {
   const [ffIdlePulseS, setFfIdlePulseS]       = useState(Math.round(ffConfig.idlePulseMs / 1000));
   const [ffFlowTimeoutS, setFfFlowTimeoutS]   = useState(Math.round(ffConfig.flowTimeoutMs / 1000));
 
+  // null | 'waiting' | 'confirmed' | 'timeout'
+  const [ackStatus, setAckStatus] = useState(null);
+
+  useEffect(() => {
+    if (ffFetcher.state !== 'idle' || !ffFetcher.data?.ok) return;
+    setAckStatus('waiting');
+    const deadline = Date.now() + 5000;
+    const iv = setInterval(async () => {
+      try {
+        const res  = await fetch('/api/ff-config-ack');
+        const data = await res.json();
+        if (data.allOk) {
+          setAckStatus('confirmed');
+          clearInterval(iv);
+        } else if (Date.now() >= deadline) {
+          setAckStatus('timeout');
+          clearInterval(iv);
+        }
+      } catch {
+        if (Date.now() >= deadline) {
+          setAckStatus('timeout');
+          clearInterval(iv);
+        }
+      }
+    }, 1500);
+    return () => clearInterval(iv);
+  }, [ffFetcher.state, ffFetcher.data]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Keep `?tab=...` in sync with the active tab without adding history entries.
   useEffect(() => {
     const current = searchParams.get('tab');
@@ -755,10 +783,22 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {ffFetcher.data?.ok && (
+            {ackStatus === 'waiting' && (
+              <div className="flex items-center gap-2 rounded-lg bg-[color:var(--water-warning)]/10 px-3 py-2 text-sm text-[color:var(--water-warning)]">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <span>Sent — waiting for device confirmation…</span>
+              </div>
+            )}
+            {ackStatus === 'confirmed' && (
               <div className="flex items-center gap-2 rounded-lg bg-[color:var(--water-safe)]/10 px-3 py-2 text-sm text-[color:var(--water-safe)]">
                 <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-                <span>First flush configuration updated and sent to device.</span>
+                <span>Device confirmed all settings.</span>
+              </div>
+            )}
+            {ackStatus === 'timeout' && (
+              <div className="flex items-center gap-2 rounded-lg bg-[color:var(--water-warning)]/10 px-3 py-2 text-sm text-[color:var(--water-warning)]">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <span>Sent, but device has not confirmed. Check device connection.</span>
               </div>
             )}
             {ffFetcher.data?.error && (
@@ -771,7 +811,8 @@ export default function SettingsPage() {
 
           <div className="flex justify-end">
             <Button
-              onClick={() =>
+              onClick={() => {
+                setAckStatus(null);
                 ffFetcher.submit(
                   {
                     intent: 'ff_config',
@@ -783,8 +824,8 @@ export default function SettingsPage() {
                     flowTimeoutMs: String(ffFlowTimeoutS * 1000),
                   },
                   { method: 'post' }
-                )
-              }
+                );
+              }}
               disabled={ffFetcher.state === 'submitting'}
             >
               <Save className="mr-2 h-4 w-4" />

@@ -330,8 +330,18 @@ mqttClient.on('message', async (topic, payload) => {
     }
 
     if (topic === 'rainwater/acks') {
-      // Format: A,VALVE,V1,OK  or  A,PUMP,P1,ERR
+      // Format: A,VALVE,V1,OK  or  A,PUMP,P1,ERR  or  A,FF_CONFIG,THRESHOLD,OK,0.50
       const parts  = raw.split(',');
+
+      if (parts[1] === 'FF_CONFIG') {
+        const param  = parts[2] ?? null;
+        const status = parts[3] ?? null;
+        const value  = parts[4]?.trim() ?? null;
+        await db.collection('ff_config_acks').insertOne({ raw, param, status, value, timestamp: new Date() });
+        broadcastLog('ff-config-ack', { param, status, value, ts: Date.now() });
+        return;
+      }
+
       const [, , actuatorId, result] = parts; // e.g. A, VALVE, V1, OK
 
       await db.collection('command_acks').insertOne({ raw, timestamp: new Date() });

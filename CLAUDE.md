@@ -384,6 +384,40 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - Do not update the docs silently — surface it as a suggestion so the user can decide when to do it.
 - The docs in `docs/` are thesis-level documentation, so changes must be accurate and reflect the actual shipped behaviour, not the planned one.
 
+### 7. ACK Feedback Loop for Every New Mega Setting
+
+**Any new setting or config sent to the Arduino Mega must have a full acknowledgement feedback loop — not just fire-and-forget MQTT delivery.**
+
+The required chain is:
+
+1. **Mega firmware** — sends `sendAck("CATEGORY,PARAM,OK,<value>")` synchronously after applying the setting. ACK before any `logEvent()` calls.
+2. **ESP32 firmware** — relays the ACK to `rainwater/acks` via MQTT within the 200 ms drain window (already handled generically — no changes needed if the Mega sends `A,` frames).
+3. **Bridge** (`scripts/mqtt-bridge.js`) — detects the new ACK type in the `rainwater/acks` handler and writes it to a dedicated collection (e.g. `ff_config_acks`, not `actuator_states`). Broadcasts an SSE event for real-time UI updates.
+4. **API route** (`app/routes/api.<category>-ack.jsx`) — GET loader that queries the collection within a short time window (30 s) and returns `{ confirmed, missing, allOk }`.
+5. **Settings UI** — polls the API route after submit. Shows three states: *waiting* (amber), *confirmed* (green), *timeout* (amber warning). Resets on re-submit.
+
+**Reference implementation:** First Flush config (`FF_CONFIG`) — see `scripts/mqtt-bridge.js` FF_CONFIG branch, `app/routes/api.ff-config-ack.jsx`, and the `ackStatus` polling logic in `app/routes/settings.jsx`.
+
+#### Timing constraints and known pitfalls
+
+**ESP32 drain window is 200 ms and shared by all commands in a batch.** All commands are sent to the Mega in a tight loop first, then the ESP32 waits up to 200 ms for exactly N ACKs (one per command). If your new command batch has M params, all M ACKs must arrive within that single 200 ms window — there is no per-command timeout. At 115200 baud, 6 ACKs (~150 bytes total) take ~13 ms, so the window is generous, but it is finite and shared.
+
+**ACK before `logEvent()`, always.** `logEvent()` writes to `Serial1` (the same TX line as ACKs). If called before `sendAck()`, its output queues ahead of the ACK in the TX buffer, and the ESP32 drain window may expire before the ACK arrives. This was a confirmed past bug (see `comms.cpp` ESTOP handler comment). The rule: call `sendAck()` first, then `logEvent()`.
+
+**Do not add blocking delays inside command handlers.** Any `delay()` call inside a `processCommand()` branch stalls the serial TX line for its full duration. The drain window will expire and the ESP32 will log a timeout warning. Async state changes (set a flag, act on next loop tick) are the safe pattern.
+
+**Sensor reads can block up to ~113 ms.** `sensors_readAll()` is called from the main loop, not from inside command handlers, so it normally doesn't interfere. But if you trigger a sensor read from within a command handler, that read blocks serial TX for up to 113 ms — cutting the effective drain window nearly in half.
+
+**ACK matching is positional, not by name.** The ESP32 matches ACKs to commands by their arrival order in the queue, not by parsing the ACK content. If the Mega sends ACKs out of order (e.g. due to an early `return` or a re-ordered handler), the ESP32 will misattribute them. Keep command handlers linear: parse → apply → `sendAck()` → `logEvent()`.
+
+**Bridge ACK handler assumes actuator format by default.** The `rainwater/acks` handler in `mqtt-bridge.js` parses `parts[2]` as an actuator ID. Any new ACK category that doesn't look like `A,VALVE,V1,OK` must be branched *before* the actuator block with an explicit `parts[1] === 'YOUR_CATEGORY'` check and an early `return`. Otherwise it silently no-ops against `actuator_states`.
+
+**Use a dedicated MongoDB collection per ACK category.** Do not reuse `command_acks` (raw log only) or `actuator_states` (actuator-specific schema). A dedicated collection (e.g. `ff_config_acks`) keeps the time-window query fast and avoids schema collisions.
+
+**Dashboard polling window vs. ACK delivery time.** ACKs arrive within ~200 ms of the submit in normal conditions. A 5 s polling window with 1.5 s intervals is sufficient. Do not use a 30 s polling window — use a 30 s *lookback* on the MongoDB query (to tolerate slight clock skew between bridge and dashboard) while keeping the UI timeout at 5 s.
+
+Do not mark a settings feature complete until all five layers are in place.
+
 ### 6. Commit Title After Every Change
 
 **End every response that includes code changes with a suggested commit title.**
