@@ -55,6 +55,14 @@ import {
 import { ActuatorsPanel } from '~/components/actuators-panel';
 import { CalibrationPanel } from '~/components/calibration-panel';
 
+export function shouldRevalidate({ currentUrl, nextUrl, defaultShouldRevalidate }) {
+  if (currentUrl.pathname === nextUrl.pathname &&
+      currentUrl.searchParams.get('tab') !== nextUrl.searchParams.get('tab')) {
+    return false;
+  }
+  return defaultShouldRevalidate;
+}
+
 export const meta = () => [
   { title: 'Settings | RainSense' },
   { name: 'description', content: 'Configure your monitoring system' },
@@ -63,14 +71,17 @@ export const meta = () => [
 const STALE_PENDING_MS = 5000;
 
 export const loader = async ({ request }) => {
-  const { requireAdmin, listUsers, getUser } = await import('~/lib/auth.server');
-  await requireAdmin(request);
-  const { getDb } = await import('~/lib/db.server');
-  const db = await getDb();
+  const [{ requireAdmin }, { getDb }] = await Promise.all([
+    import('~/lib/auth.server'),
+    import('~/lib/db.server'),
+  ]);
+  const [currentUser, db] = await Promise.all([
+    requireAdmin(request),
+    getDb(),
+  ]);
 
-  const [users, currentUser, ffConfigDoc, actuatorDocs, latestSensor] = await Promise.all([
-    listUsers(),
-    getUser(request),
+  const [users, ffConfigDoc, actuatorDocs, latestSensor] = await Promise.all([
+    db.collection('users').find({}, { projection: { passwordHash: 0 } }).sort({ createdAt: 1 }).toArray(),
     db.collection('system_config').findOne({ key: 'first_flush' }),
     db.collection('actuator_states').find({}).toArray(),
     db.collection('sensor_readings').findOne({}, { sort: { timestamp: -1 } }),
@@ -504,7 +515,7 @@ export default function SettingsPage() {
   const { ffConfig, persisted, filterMode, backwashState, calMode } = useLoaderData();
   const ffFetcher = useFetcher();
 
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const initialTab = VALID_TABS.includes(searchParams.get('tab'))
     ? searchParams.get('tab')
     : 'actuators';
@@ -544,16 +555,6 @@ export default function SettingsPage() {
     }, 1500);
     return () => clearInterval(iv);
   }, [ffFetcher.state, ffFetcher.data]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Keep `?tab=...` in sync with the active tab without adding history entries.
-  useEffect(() => {
-    const current = searchParams.get('tab');
-    if (current !== activeTab) {
-      const next = new URLSearchParams(searchParams);
-      next.set('tab', activeTab);
-      setSearchParams(next, { replace: true });
-    }
-  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="space-y-6">

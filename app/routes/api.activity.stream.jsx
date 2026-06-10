@@ -22,6 +22,7 @@ export async function loader({ request }) {
   try {
     bridgeRes = await fetch(`${BRIDGE_URL}/activity/stream`, { signal });
   } catch (err) {
+    if (signal.aborted) return new Response(null, { status: 499 });
     return new Response(`Bridge unreachable: ${err.message}`, { status: 502 });
   }
 

@@ -11,7 +11,6 @@
  * polling when anything is unconfirmed.
  */
 
-import { useRevalidator } from '@remix-run/react';
 import { useState, useEffect, useRef } from 'react';
 import { useActivityStream } from '~/lib/activity-stream';
 import { cn } from '~/lib/utils';
@@ -259,7 +258,6 @@ function QuickActionCard({ action: qa, activeStates, onStart, onStop }) {
 }
 
 export function ActuatorsPanel({ persisted, filterMode, backwashState }) {
-  const revalidator = useRevalidator();
   const { subscribeActuators } = useActivityStream();
 
   const [states, setStates] = useState(() => ({
@@ -300,20 +298,28 @@ export function ActuatorsPanel({ persisted, filterMode, backwashState }) {
     });
   }, [persisted]);
 
-  const anyPending = Object.values(confirmed).some((c) => !c);
+  // SSE-driven updates: apply actuator state directly from the bridge payload
+  // rather than triggering a loader revalidation on every event.
   useEffect(() => {
-    if (!anyPending) return;
-    const id = setInterval(() => revalidator.revalidate(), 500);
-    return () => clearInterval(id);
-  }, [anyPending, revalidator]);
-
-  // SSE-driven updates: revalidate immediately when the bridge pushes a
-  // hardware state change, even when no UI command is pending.
-  useEffect(() => {
-    return subscribeActuators(() => {
-      revalidator.revalidate();
+    return subscribeActuators(({ states: incoming }) => {
+      setStates((prev) => {
+        const next = { ...prev };
+        for (const [id, v] of Object.entries(incoming)) next[id] = v.state === 'ON';
+        return next;
+      });
+      setConfirmed((prev) => {
+        const next = { ...prev };
+        for (const [id, v] of Object.entries(incoming)) {
+          if (v.confirmed) {
+            clearTimeout(pendingTimersRef.current[id]);
+            delete pendingTimersRef.current[id];
+            next[id] = true;
+          }
+        }
+        return next;
+      });
     });
-  }, [subscribeActuators, revalidator]);
+  }, [subscribeActuators]);
 
   const anyOn = Object.values(states).some(Boolean);
 
