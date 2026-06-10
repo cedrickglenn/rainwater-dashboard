@@ -327,6 +327,15 @@ mqttClient.on('message', async (topic, payload) => {
         { $set: { status: status === 'OK' ? 'acked' : 'failed', ackedAt: new Date() } },
         { sort: { createdAt: -1 } }
       );
+
+      // CAL_TURB_FAULT ACK: A,CAL_TURB_FAULT,C2,OK,0.500
+      // Positional map: command=CAL_TURB_FAULT, container=C2, point=OK, status=0.500
+      if (command === 'CAL_TURB_FAULT') {
+        await db.collection('cal_turb_fault_acks').insertOne({
+          raw, container, status: point, value: status?.trim() ?? null, timestamp: new Date(),
+        });
+        broadcastLog('cal-turb-fault-ack', { container, status: point, value: status?.trim() ?? null, ts: Date.now() });
+      }
     }
 
     if (topic === 'rainwater/acks') {

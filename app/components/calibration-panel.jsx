@@ -460,6 +460,117 @@ function PHTab() {
   );
 }
 
+const FAULT_FLOOR_CONTAINERS = ['C2', 'C5', 'C6'];
+const ACK_FAULT_POLL_MS      = 1500;
+const ACK_FAULT_TIMEOUT_MS   = 5000;
+
+function TurbFaultFloorSection() {
+  const [floors, setFloors] = useState({ C2: '0.500', C5: '0.500', C6: '0.500' });
+  const [ackState, setAckState] = useState(null); // null | 'waiting' | { ok, message }
+  const timerRef   = useRef(null);
+  const startRef   = useRef(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSubmitting(true);
+    setAckState(null);
+
+    for (const container of FAULT_FLOOR_CONTAINERS) {
+      const val = parseFloat(floors[container]);
+      if (isNaN(val)) continue;
+      await fetch(CAL_ACTION, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          command: 'CAL_TURB_FAULT',
+          container,
+          value: val.toFixed(3),
+        }),
+      });
+    }
+
+    setSubmitting(false);
+    startRef.current = Date.now();
+    setAckState('waiting');
+    clearInterval(timerRef.current);
+
+    timerRef.current = setInterval(async () => {
+      if (Date.now() - startRef.current > ACK_FAULT_TIMEOUT_MS) {
+        clearInterval(timerRef.current);
+        setAckState({ ok: false, message: 'No ACK from device after 5 s — check serial connection.' });
+        return;
+      }
+      try {
+        const res = await fetch('/api/cal-turb-fault-ack');
+        if (!res.ok) return;
+        const { allOk, missing } = await res.json();
+        if (allOk) {
+          clearInterval(timerRef.current);
+          setAckState({ ok: true, message: 'Fault floors applied & saved to EEPROM (C2, C5, C6).' });
+        } else if (missing.length === 0) {
+          clearInterval(timerRef.current);
+          setAckState({ ok: true, message: 'Fault floors applied & saved to EEPROM.' });
+        }
+      } catch { /* network blip */ }
+    }, ACK_FAULT_POLL_MS);
+  }
+
+  return (
+    <div className="mt-4 space-y-3 rounded-lg border p-4">
+      <p className="text-sm font-medium">Sensor Fault Floor</p>
+      <p className="text-xs text-muted-foreground">
+        Raw voltage below which the turbidity sensor is considered faulty (disconnected or in air)
+        rather than measuring turbid water. The pipeline will log a fault and hold — it will not
+        activate the recycle loop. Default 0.5 V. Valid range: 0.0 – 2.0 V.
+      </p>
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <div className="grid gap-2 sm:grid-cols-3">
+          {FAULT_FLOOR_CONTAINERS.map((c) => (
+            <div key={c} className="flex items-center gap-2">
+              <Label className="w-8 flex-shrink-0 text-xs">{c}</Label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max="2"
+                value={floors[c]}
+                onChange={(e) => setFloors((prev) => ({ ...prev, [c]: e.target.value }))}
+                className="w-24 rounded-md border bg-background px-3 py-1.5 text-sm font-mono"
+              />
+              <span className="text-xs text-muted-foreground">V</span>
+            </div>
+          ))}
+        </div>
+        <Button type="submit" variant="outline" size="sm" disabled={submitting} className="gap-2">
+          {submitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <DatabaseZap className="h-3 w-3" />}
+          {submitting ? 'Sending…' : 'Save Fault Floors'}
+        </Button>
+      </form>
+
+      {ackState === 'waiting' && (
+        <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="font-mono text-xs">Waiting for device ACK…</span>
+        </div>
+      )}
+      {ackState && typeof ackState === 'object' && (
+        <div className={cn(
+          'flex items-center gap-2 rounded-lg px-3 py-2 text-sm',
+          ackState.ok
+            ? 'bg-[color:var(--water-safe)]/10 text-[color:var(--water-safe)]'
+            : 'bg-[color:var(--water-unsafe)]/10 text-[color:var(--water-unsafe)]'
+        )}>
+          {ackState.ok
+            ? <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+            : <AlertCircle className="h-4 w-4 flex-shrink-0" />}
+          <span className="font-mono text-xs">{ackState.message}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TurbidityTab() {
   const fetcher = useFetcher();
   const [container, setContainer] = useState('C2');
@@ -545,6 +656,7 @@ function TurbidityTab() {
 
       <SensorResetButton sensor="TURB" containers={TURB_CONTAINERS} />
       <AckStatus fetcherData={fetcher.data} submitting={submitting} />
+      <TurbFaultFloorSection />
     </CalSection>
   );
 }
