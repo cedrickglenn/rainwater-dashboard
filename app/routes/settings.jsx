@@ -523,7 +523,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (ffFetcher.state !== 'idle' || !ffFetcher.data?.ok) return;
     setAckStatus('waiting');
-    const deadline = Date.now() + 5000;
+    const deadline = Date.now() + 15000;
     const iv = setInterval(async () => {
       try {
         const res  = await fetch('/api/ff-config-ack');
