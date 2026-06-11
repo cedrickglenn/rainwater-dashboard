@@ -63,12 +63,6 @@ export const links = () => [
   { rel: 'manifest', href: '/manifest.json' },
 ];
 
-export function shouldRevalidate({ currentUrl, nextUrl, defaultShouldRevalidate }) {
-  // Skip revalidation when only search params changed on the same page.
-  // This prevents the Open-Meteo fetch from re-running on tab switches.
-  if (currentUrl.pathname === nextUrl.pathname) return false;
-  return defaultShouldRevalidate;
-}
 
 export const loader = async ({ request }) => {
   const { getUser } = await import('~/lib/auth.server');

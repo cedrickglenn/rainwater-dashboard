@@ -23,7 +23,8 @@ const ENDPOINT =
   `&timezone=${encodeURIComponent(TZ)}` +
   `&forecast_days=3`;
 
-const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+const CACHE_TTL       = 15 * 60 * 1000; // 15 minutes for successful responses
+const CACHE_TTL_ERROR =       60 * 1000; // 1 minute backoff after errors
 let _cache = { data: null, fetchedAt: 0 };
 
 // ---------------------------------------------------------------------------
@@ -85,8 +86,9 @@ function buildIsDayFn(sunriseStr, sunsetStr) {
 // ---------------------------------------------------------------------------
 
 export async function getWeather() {
-  if (_cache.data && Date.now() - _cache.fetchedAt < CACHE_TTL) {
-    return _cache.data;
+  if (_cache.data) {
+    const ttl = _cache.data.error ? CACHE_TTL_ERROR : CACHE_TTL;
+    if (Date.now() - _cache.fetchedAt < ttl) return _cache.data;
   }
 
   try {
@@ -162,12 +164,14 @@ export async function getWeather() {
     _cache = { data, fetchedAt: Date.now() };
     return data;
   } catch (err) {
-    return {
+    const data = {
       current:   null,
       forecast:  [],
       hourly:    [],
       fetchedAt: null,
       error:     err.message ?? 'Weather unavailable',
     };
+    _cache = { data, fetchedAt: Date.now() };
+    return data;
   }
 }
